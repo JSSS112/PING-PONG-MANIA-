@@ -12161,6 +12161,10 @@ MonoBehaviour:
   countdownText: {fileID: 1148134586}
   resultPanel: {fileID: 369114051}
   resultText: {fileID: 1263823457}
+  bossLifeSlider: {fileID: 200830799}
+  playerLifeSlider: {fileID: 720905698}
+  bossLifeText: {fileID: 600087839}
+  playerLifeText: {fileID: 1581514570}
   ballSpawner: {fileID: 1280844350}
   roundActive: 0
   gameOver: 0

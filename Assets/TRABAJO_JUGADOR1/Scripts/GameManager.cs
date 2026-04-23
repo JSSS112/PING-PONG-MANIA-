@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 using System.Collections;
 using TMPro;
 
@@ -11,10 +12,18 @@ public class GameManager : MonoBehaviour
     public int bossLife   = 11;
     public int playerLife = 11;
 
-    [Header("UI - dejar vacio si no esta lista")]
+    [Header("UI — Countdown y Resultado")]
     public TextMeshProUGUI countdownText;
     public GameObject      resultPanel;
     public TextMeshProUGUI resultText;
+
+    [Header("UI — Sliders de vida")]
+    public Slider bossLifeSlider;
+    public Slider playerLifeSlider;
+
+    [Header("UI — Textos de corazones")]
+    public TextMeshProUGUI bossLifeText;
+    public TextMeshProUGUI playerLifeText;
 
     [Header("OBLIGATORIO")]
     public BallSpawner ballSpawner;
@@ -23,8 +32,7 @@ public class GameManager : MonoBehaviour
     [HideInInspector] public bool roundActive = false;
     [HideInInspector] public bool gameOver    = false;
 
-    // Saque ALTERNADO por numero de ronda
-    // Ronda 0 = jugador, ronda 1 = jefe, ronda 2 = jugador, etc.
+    // Saque alternado por numero de ronda: par = jugador, impar = jefe
     private int numeroRonda = 0;
 
     // ════════════════════════════════════════════════════════════════════════
@@ -39,8 +47,39 @@ public class GameManager : MonoBehaviour
         if (resultPanel   != null) resultPanel.SetActive(false);
         if (countdownText != null) countdownText.gameObject.SetActive(false);
 
-        numeroRonda = 0; // Primera ronda: jugador saca (par = jugador)
+        // Inicializar sliders y textos con valores completos
+        ActualizarUI();
+
+        numeroRonda = 0;
         StartCoroutine(IniciarRonda());
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // ACTUALIZAR TODA LA UI DE VIDAS
+    // ════════════════════════════════════════════════════════════════════════
+    void ActualizarUI()
+    {
+        // Sliders
+        if (bossLifeSlider   != null)
+        {
+            bossLifeSlider.minValue = 0;
+            bossLifeSlider.maxValue = 11;
+            bossLifeSlider.value    = bossLife;
+        }
+        if (playerLifeSlider != null)
+        {
+            playerLifeSlider.minValue = 0;
+            playerLifeSlider.maxValue = 11;
+            playerLifeSlider.value    = playerLife;
+        }
+
+        // Textos con corazones
+        if (bossLifeText   != null)
+            bossLifeText.text   = "Jefe " + new string('\u2665', bossLife)
+                                          + new string('\u2661', 11 - bossLife);
+        if (playerLifeText != null)
+            playerLifeText.text = "Tu   " + new string('\u2665', playerLife)
+                                          + new string('\u2661', 11 - playerLife);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -55,11 +94,12 @@ public class GameManager : MonoBehaviour
         ballSpawner?.DestruirPelotaActual();
 
         playerLife = Mathf.Max(0, playerLife - 1);
-        Debug.Log($"[OASIS] JEFE anota! Jugador:{playerLife} pts perdidos | Jefe:{bossLife} pts perdidos");
+        ActualizarUI();
+
+        Debug.Log($"[OASIS] JEFE anota! Jugador vida:{playerLife} | Jefe vida:{bossLife}");
 
         if (VerificarFinJuego()) return;
 
-        // Avanzar al siguiente numero de ronda (saque alternado)
         numeroRonda++;
         StartCoroutine(EsperarYReiniciar());
     }
@@ -73,11 +113,12 @@ public class GameManager : MonoBehaviour
         ballSpawner?.DestruirPelotaActual();
 
         bossLife = Mathf.Max(0, bossLife - 1);
-        Debug.Log($"[OASIS] JUGADOR anota! Jefe:{bossLife} pts perdidos | Jugador:{playerLife} pts perdidos");
+        ActualizarUI();
+
+        Debug.Log($"[OASIS] JUGADOR anota! Jefe vida:{bossLife} | Jugador vida:{playerLife}");
 
         if (VerificarFinJuego()) return;
 
-        // Avanzar al siguiente numero de ronda (saque alternado)
         numeroRonda++;
         StartCoroutine(EsperarYReiniciar());
     }
@@ -93,7 +134,6 @@ public class GameManager : MonoBehaviour
 
     IEnumerator IniciarRonda()
     {
-        // Par = jugador saca | Impar = jefe saca
         bool jefeSaca = (numeroRonda % 2 != 0);
 
         Debug.Log($"[OASIS] Ronda {numeroRonda} | Saca: {(jefeSaca ? "JEFE" : "JUGADOR")}");
@@ -156,7 +196,7 @@ public class GameManager : MonoBehaviour
         Debug.Log("[OASIS] " + msg);
         Debug.Log("[OASIS] ========================");
 
-        Time.timeScale = 0f; // Pausa el juego completamente
+        Time.timeScale = 0f;
 
         if (resultPanel != null) resultPanel.SetActive(true);
         if (resultText  != null) resultText.text = msg;
@@ -168,7 +208,7 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
-    // Rebote en la mesa — solo para log y resetear watchdog
+    // Rebote en la mesa
     public void RegistrarRebote(bool ladoJefe)
     {
         if (!roundActive) return;
