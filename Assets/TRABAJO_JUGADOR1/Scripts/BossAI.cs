@@ -2,27 +2,47 @@ using UnityEngine;
 using System.Collections;
 
 /// <summary>
-/// BOSS = lanzador de pelota. Nada mas.
-/// Cuando la pelota lo toca → la manda a velocidad fija hacia el lado del jugador.
-/// Usa rb.velocity directo (no AddForce) para maxima precision y predictibilidad.
+/// BOSS IA FINAL
+/// - Estático (solo decoración, no se mueve)
+/// - Velocidad base que AUMENTA con cada vida perdida
+/// - 30% de probabilidad: lanza bola roja señuelo en dirección opuesta en X
+/// - 20% de probabilidad: aplica efecto azul/naranja a la pelota
+/// - Siempre asegura que la pelota llegue bien a la mesa del jugador
 /// </summary>
 public class BossAI : MonoBehaviour
 {
-    [Header("Velocidad fija del tiro (ajustar en Inspector hasta que llegue bien)")]
-    [Tooltip("Velocidad en Z - NEGATIVO para ir hacia el jugador")]
-    public float velocidadZ = -2.5f;
+    // ─── VELOCIDAD (aumenta al perder vida) ──────────────────────────────────
+    [Header("Velocidad base del tiro")]
+    [Tooltip("Velocidad en Z hacia el jugador — negativo. Ej: -2.5")]
+    public float velocidadZBase = -2.5f;
 
-    [Tooltip("Velocidad en Y - positivo para que salte por encima de la red")]
-    public float velocidadY = 2.2f;
+    [Tooltip("Velocidad en Y para el arco — positivo. Ej: 2.2")]
+    public float velocidadYBase = 2.2f;
 
-    [Tooltip("Velocidad en X - dejar en 0 para ir siempre al centro")]
-    public float velocidadX = 0f;
+    [Tooltip("Cuánto aumenta la velocidad Z por cada vida que pierde el jefe")]
+    public float incrementoVelocidadPorVida = 0.18f;
 
-    // Estado interno
+    [Tooltip("Velocidad máxima en Z (para que no se vuelva imposible)")]
+    public float velocidadZMaxima = -6.0f;
+
+    // ─── BOLA SEÑUELO (30%) ───────────────────────────────────────────────────
+    [Header("Bola señuelo roja (30% de probabilidad)")]
+    [Tooltip("Prefab de bola ROJA sin collider — solo visual")]
+    public GameObject prefabBolaSenuelo;
+
+    [Tooltip("Tiempo en segundos que vive la bola señuelo antes de desaparecer")]
+    public float tiempoVidaSenuelo = 2.5f;
+
+    // ─── EFECTO DE COLOR (20%) ────────────────────────────────────────────────
+    [Header("Efecto de color azul/naranja (20% de probabilidad)")]
+    [Range(0f, 1f)]
+    public float probabilidadEfectoColor = 0.20f;
+
+    // ─── ESTADO INTERNO ──────────────────────────────────────────────────────
     private bool ocupado = false;
 
     // ════════════════════════════════════════════════════════════════════════
-    // DETECCION: pelota toca al jefe
+    // DETECCIÓN: pelota toca al jefe
     // ════════════════════════════════════════════════════════════════════════
     void OnTriggerEnter(Collider other)
     {
@@ -30,21 +50,23 @@ public class BossAI : MonoBehaviour
         if (ocupado)                   return;
         if (GameManager.instance == null || !GameManager.instance.roundActive) return;
 
-        // Solo reaccionar a la pelota activa del spawner
         BallSpawner spawner = FindFirstObjectByType<BallSpawner>();
         if (spawner != null && spawner.GetPelotaActual() != other.gameObject) return;
 
         Rigidbody rb = other.GetComponent<Rigidbody>();
         if (rb == null) return;
 
+        // Resetear efecto de color de la ronda anterior
+        other.GetComponent<PelotaBehaviour>()?.ResetarEfectoColor();
+
         ocupado = true;
-        StartCoroutine(LanzarPelota(rb));
+        StartCoroutine(LanzarPelota(rb, other.gameObject));
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // LANZAR A PUNTO FIJO
+    // LANZAR PELOTA — siempre al mismo punto, velocidad progresiva
     // ════════════════════════════════════════════════════════════════════════
-    IEnumerator LanzarPelota(Rigidbody rb)
+    IEnumerator LanzarPelota(Rigidbody rb, GameObject pelotaObj)
     {
         if (rb == null) { ocupado = false; yield break; }
 
@@ -56,13 +78,31 @@ public class BossAI : MonoBehaviour
 
         if (rb == null) { ocupado = false; yield break; }
 
-        // Descongelar y asignar velocidad directa (sin AddForce, sin masas)
-        rb.isKinematic = false;
-        rb.useGravity  = true;
-        rb.linearVelocity        = new Vector3(velocidadX, velocidadY, velocidadZ);
+        // Calcular velocidad con incremento por vida perdida
+        Vector3 velocidad = CalcularVelocidad();
+
+        // ── 30%: Lanzar bola señuelo antes de soltar la real ──
+        if (Random.value <= 0.30f && prefabBolaSenuelo != null)
+            LanzarSenuelo(rb.transform.position, velocidad);
+
+        // ── Descongelar y lanzar la pelota real ──
+        rb.isKinematic     = false;
+        rb.useGravity      = true;
+        rb.linearVelocity        = velocidad;
         rb.angularVelocity = Vector3.zero;
 
-        Debug.Log($"[Boss] Pelota lanzada con velocidad: {rb.linearVelocity}");
+        // ── 20%: Aplicar efecto de color (azul o naranja) ──
+        if (Random.value <= probabilidadEfectoColor)
+        {
+            PelotaBehaviour pb = pelotaObj.GetComponent<PelotaBehaviour>();
+            if (pb != null)
+            {
+                bool esAzul = (Random.value > 0.5f);
+                pb.SetEfectoColor(esAzul);
+            }
+        }
+
+        Debug.Log($"[Boss] Pelota lanzada v={velocidad} | Vida boss:{GameManager.instance?.bossLife}");
         BallWatchdog.instance?.RegistrarGolpe();
 
         yield return new WaitForSeconds(1f);
@@ -70,7 +110,7 @@ public class BossAI : MonoBehaviour
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // SAQUE DEL JEFE (llamado por BallSpawner)
+    // SAQUE DEL JEFE
     // ════════════════════════════════════════════════════════════════════════
     public void PrepararSaque(GameObject pelota)
     {
@@ -88,19 +128,62 @@ public class BossAI : MonoBehaviour
         Rigidbody rb = pelota.GetComponent<Rigidbody>();
         if (rb == null) { ocupado = false; yield break; }
 
-        rb.isKinematic = false;
-        rb.useGravity  = true;
-        rb.linearVelocity        = new Vector3(velocidadX, velocidadY, velocidadZ);
+        Vector3 velocidad = CalcularVelocidad();
+
+        rb.isKinematic     = false;
+        rb.useGravity      = true;
+        rb.linearVelocity        = velocidad;
         rb.angularVelocity = Vector3.zero;
 
-        Debug.Log($"[Boss] Saque lanzado con velocidad: {rb.linearVelocity}");
+        Debug.Log($"[Boss] Saque lanzado v={velocidad}");
         BallWatchdog.instance?.RegistrarGolpe();
 
         yield return new WaitForSeconds(1f);
         ocupado = false;
     }
 
-    // Llamado por BallSpawner al crear nueva pelota
+    // ════════════════════════════════════════════════════════════════════════
+    // BOLA SEÑUELO
+    // ════════════════════════════════════════════════════════════════════════
+    void LanzarSenuelo(Vector3 posOrigen, Vector3 velocidadReal)
+    {
+        GameObject senuelo = Instantiate(prefabBolaSenuelo, posOrigen, Quaternion.identity);
+        Rigidbody  srb     = senuelo.GetComponent<Rigidbody>();
+
+        if (srb != null)
+        {
+            // Dirección opuesta en X, mismo Y y Z
+            Vector3 velocidadSenuelo = new Vector3(
+                -velocidadReal.x + (velocidadReal.x >= 0 ? -0.8f : 0.8f),
+                velocidadReal.y,
+                velocidadReal.z
+            );
+            srb.linearVelocity = velocidadSenuelo;
+        }
+
+        // Destruir después de un tiempo
+        Destroy(senuelo, tiempoVidaSenuelo);
+        Debug.Log("[Boss] Bola señuelo lanzada");
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // CALCULAR VELOCIDAD PROGRESIVA
+    // ════════════════════════════════════════════════════════════════════════
+    Vector3 CalcularVelocidad()
+    {
+        int vidasPerdidas = 11 - (GameManager.instance?.bossLife ?? 11);
+
+        // VelocidadZ se vuelve más negativa (más rápida) con cada vida perdida
+        float vz = velocidadZBase - vidasPerdidas * incrementoVelocidadPorVida;
+        vz = Mathf.Max(vz, velocidadZMaxima); // no superar el máximo
+
+        // VelocidadY también sube un poco para mantener el arco proporcional
+        float vy = velocidadYBase + vidasPerdidas * 0.05f;
+
+        return new Vector3(0f, vy, vz);
+    }
+
+    // Llamado por BallSpawner cuando crea nueva pelota
     public void SetPelotaActual(GameObject pelota)
     {
         ocupado = false;

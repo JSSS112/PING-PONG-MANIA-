@@ -23918,9 +23918,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 26cec89920e16ee40b62a07ef38ce2e5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BossAI
-  velocidadZ: -2.5
-  velocidadY: 2.2
-  velocidadX: 0
+  velocidadZBase: -2.5
+  velocidadYBase: 2.2
+  incrementoVelocidadPorVida: 0.18
+  velocidadZMaxima: -6
+  prefabBolaSenuelo: {fileID: 2075919655332027530, guid: 0ad050a1b5b79284688fd00c24b595ae, type: 3}
+  tiempoVidaSenuelo: 2.5
+  probabilidadEfectoColor: 0.2
 --- !u!54 &1957094250
 Rigidbody:
   m_ObjectHideFlags: 0

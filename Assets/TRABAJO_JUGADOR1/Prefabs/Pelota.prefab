@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 1512306518289777435}
   - component: {fileID: 5934877947402755591}
   - component: {fileID: 5088611597420472364}
+  - component: {fileID: -2269238898633277557}
   m_Layer: 0
   m_Name: Pelota
   m_TagString: Ball
@@ -200,3 +201,18 @@ MonoBehaviour:
   m_snapOrientation: 0
   m_snapOffset: {fileID: 0}
   m_grabPoints: []
+--- !u!114 &-2269238898633277557
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5233517256474944214}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 52041deb71cf85c47ad5363a13bb68bc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PelotaBehaviour
+  gravedadNormal: 9.81
+  gravedadAzul: 2.5
+  gravedadNaranja: 22
