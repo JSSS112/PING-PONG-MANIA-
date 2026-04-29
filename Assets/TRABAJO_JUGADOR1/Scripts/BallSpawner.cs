@@ -1,87 +1,109 @@
-using UnityEngine;
 using System.Collections;
+using UnityEngine;
 
 public class BallSpawner : MonoBehaviour
 {
-    [Header("Prefab pelota (Rigidbody + Tag Ball + OVR Grabbable + PelotaBehaviour)")]
+    [Header("Ball")]
     public GameObject ballPrefab;
 
-    [Header("Puntos de saque")]
+    [Header("Serve Points")]
     public Transform posicionSaqueJefe;
     public Transform posicionSaqueJugador;
 
-    [Header("BossAI")]
+    [Header("Boss")]
     public BossAI bossAI;
 
-    private GameObject pelotaActual;
+    [Header("Player Serve Offset")]
+    [SerializeField] private Vector3 headRelativeServeOffset = new Vector3(0.22f, -0.12f, 0.42f);
 
-    // ════════════════════════════════════════════════════════════════════════
-    public void SpawnBall(bool jefeSaca) => StartCoroutine(DoSpawn(jefeSaca));
+    private GameObject _currentBall;
+
+    public void SpawnBall(bool bossServes)
+    {
+        StartCoroutine(SpawnRoutine(bossServes));
+    }
 
     public void DestruirPelotaActual()
     {
-        if (pelotaActual != null) { Destroy(pelotaActual); pelotaActual = null; }
+        if (_currentBall != null)
+        {
+            Destroy(_currentBall);
+            _currentBall = null;
+        }
     }
 
-    public GameObject GetPelotaActual() => pelotaActual;
+    public GameObject GetPelotaActual()
+    {
+        return _currentBall;
+    }
 
-    // ════════════════════════════════════════════════════════════════════════
-    IEnumerator DoSpawn(bool jefeSaca)
+    private IEnumerator SpawnRoutine(bool bossServes)
     {
         DestruirPelotaActual();
         yield return new WaitForEndOfFrame();
 
-        if (ballPrefab == null) { Debug.LogError("[Spawner] ballPrefab no asignado!"); yield break; }
+        if (ballPrefab == null)
+        {
+            Debug.LogError("[Spawner] Missing ball prefab.");
+            yield break;
+        }
 
-        Vector3 pos = jefeSaca
-            ? (posicionSaqueJefe     != null ? posicionSaqueJefe.position     : new Vector3(0f, -0.30f, -0.25f))
-            : (posicionSaqueJugador  != null ? posicionSaqueJugador.position  : new Vector3(0f, -0.30f, -2.70f));
+        Vector3 spawnPosition = bossServes ? GetBossServePosition() : GetPlayerServePosition();
+        _currentBall = Instantiate(ballPrefab, spawnPosition, Quaternion.identity);
 
-        pelotaActual = Instantiate(ballPrefab, pos, Quaternion.identity);
+        Rigidbody rb = _currentBall.GetComponent<Rigidbody>();
+        PelotaBehaviour pelota = _currentBall.GetComponent<PelotaBehaviour>();
 
-        Rigidbody rb = pelotaActual.GetComponent<Rigidbody>();
-        if (rb == null) { Debug.LogError("[Spawner] Sin Rigidbody en prefab!"); yield break; }
-
-        // Arrancar congelada 1 frame para evitar bugs de física
-        rb.isKinematic     = true;
-        rb.useGravity      = false;
-        rb.linearVelocity        = Vector3.zero;
-        rb.angularVelocity = Vector3.zero;
-
-        yield return new WaitForEndOfFrame();
-        if (pelotaActual == null) yield break;
-
-        if (bossAI != null) bossAI.SetPelotaActual(pelotaActual);
+        if (rb == null || pelota == null)
+        {
+            Debug.LogError("[Spawner] The ball prefab is missing a Rigidbody or PelotaBehaviour.");
+            yield break;
+        }
 
         rb.isKinematic = false;
+        rb.useGravity = false;
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
 
-        if (jefeSaca)
+        bossAI?.SetPelotaActual(_currentBall);
+
+        if (bossServes)
         {
-            // Jefe saca: habilitar físicas y dejar que el boss la lance
-            rb.useGravity = true;
-            bossAI?.PrepararSaque(pelotaActual);
+            bossAI?.PrepararSaque(_currentBall);
         }
         else
         {
-            // Jugador saca: pelota flota quieta hasta que la agarre
-            // PelotaBehaviour maneja todo desde aquí
-            PelotaBehaviour pb = pelotaActual.GetComponent<PelotaBehaviour>();
-            if (pb != null)
-            {
-                pb.IniciarFlotando();
-            }
-            else
-            {
-                // Fallback si no tiene el script: flota 9 segundos igual que antes
-                rb.useGravity = false;
-                StartCoroutine(ActivarGravedadTardio(rb, 9f));
-            }
+            pelota.IniciarFlotando(spawnPosition, Quaternion.identity);
         }
     }
 
-    IEnumerator ActivarGravedadTardio(Rigidbody rb, float delay)
+    private Vector3 GetBossServePosition()
     {
-        yield return new WaitForSeconds(delay);
-        if (rb != null) rb.useGravity = true;
+        if (posicionSaqueJefe != null)
+        {
+            return posicionSaqueJefe.position;
+        }
+
+        return new Vector3(0f, 1.1f, 0.1f);
+    }
+
+    private Vector3 GetPlayerServePosition()
+    {
+        Transform head = Camera.main != null ? Camera.main.transform : null;
+        if (head != null)
+        {
+            Vector3 position = head.position;
+            position += head.right * headRelativeServeOffset.x;
+            position += Vector3.up * headRelativeServeOffset.y;
+            position += head.forward * headRelativeServeOffset.z;
+            return position;
+        }
+
+        if (posicionSaqueJugador != null)
+        {
+            return posicionSaqueJugador.position;
+        }
+
+        return new Vector3(0f, 1.2f, -1.1f);
     }
 }
