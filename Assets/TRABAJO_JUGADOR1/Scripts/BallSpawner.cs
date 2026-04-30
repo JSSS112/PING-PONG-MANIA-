@@ -1,109 +1,103 @@
-using System.Collections;
 using UnityEngine;
+using System.Collections;
 
+/// <summary>
+/// BallSpawner — gestiona la pelota actual del juego.
+///
+/// MVP nuevo:
+/// - Saque del JEFE: spawnea pelota en posicionSaqueJefe y se la pasa al BossAI.
+/// - Saque del JUGADOR: NO spawnea nada. Avisa a SistemaDeServicio para que
+///   espere el trigger izquierdo y cree la pelota en la mano del jugador.
+///
+/// SistemaDeServicio llama a RegistrarPelotaJugador() cuando la pelota es
+/// creada en la mano izquierda, así el GameManager / BossAI / Watchdog la
+/// reconocen como "pelota actual".
+/// </summary>
 public class BallSpawner : MonoBehaviour
 {
-    [Header("Ball")]
+    [Header("Prefab pelota (Rigidbody + Tag Ball + PelotaBehaviour)")]
     public GameObject ballPrefab;
 
-    [Header("Serve Points")]
+    [Header("Punto de saque del jefe")]
     public Transform posicionSaqueJefe;
-    public Transform posicionSaqueJugador;
 
-    [Header("Boss")]
+    [Header("Referencias")]
     public BossAI bossAI;
+    public SistemaDeServicio sistemaDeServicio;
 
-    [Header("Player Serve Offset")]
-    [SerializeField] private Vector3 headRelativeServeOffset = new Vector3(0.22f, -0.12f, 0.42f);
+    private GameObject pelotaActual;
 
-    private GameObject _currentBall;
-
-    public void SpawnBall(bool bossServes)
+    // ════════════════════════════════════════════════════════════════════════
+    public void SpawnBall(bool jefeSaca)
     {
-        StartCoroutine(SpawnRoutine(bossServes));
+        if (jefeSaca) StartCoroutine(SpawnSaqueJefe());
+        else          IniciarSaqueJugador();
     }
 
     public void DestruirPelotaActual()
     {
-        if (_currentBall != null)
-        {
-            Destroy(_currentBall);
-            _currentBall = null;
-        }
+        if (pelotaActual != null) { Destroy(pelotaActual); pelotaActual = null; }
+
+        // Cancelar cualquier saque pendiente del jugador
+        if (sistemaDeServicio != null) sistemaDeServicio.CancelarSaque();
     }
 
-    public GameObject GetPelotaActual()
+    public GameObject GetPelotaActual() => pelotaActual;
+
+    /// <summary>Llamado por SistemaDeServicio cuando crea/suelta la pelota en la mano izquierda.</summary>
+    public void RegistrarPelotaJugador(GameObject pelota)
     {
-        return _currentBall;
+        pelotaActual = pelota;
+        if (bossAI != null) bossAI.SetPelotaActual(pelota);
     }
 
-    private IEnumerator SpawnRoutine(bool bossServes)
+    public GameObject GetBallPrefab() => ballPrefab;
+
+    // ════════════════════════════════════════════════════════════════════════
+    IEnumerator SpawnSaqueJefe()
     {
         DestruirPelotaActual();
         yield return new WaitForEndOfFrame();
 
-        if (ballPrefab == null)
-        {
-            Debug.LogError("[Spawner] Missing ball prefab.");
-            yield break;
-        }
+        if (ballPrefab == null) { Debug.LogError("[OASIS][Spawner] ballPrefab no asignado!"); yield break; }
 
-        Vector3 spawnPosition = bossServes ? GetBossServePosition() : GetPlayerServePosition();
-        _currentBall = Instantiate(ballPrefab, spawnPosition, Quaternion.identity);
+        Vector3 pos = (posicionSaqueJefe != null)
+            ? posicionSaqueJefe.position
+            : new Vector3(0f, -0.30f, -0.25f);
 
-        Rigidbody rb = _currentBall.GetComponent<Rigidbody>();
-        PelotaBehaviour pelota = _currentBall.GetComponent<PelotaBehaviour>();
+        pelotaActual = Instantiate(ballPrefab, pos, Quaternion.identity);
 
-        if (rb == null || pelota == null)
-        {
-            Debug.LogError("[Spawner] The ball prefab is missing a Rigidbody or PelotaBehaviour.");
-            yield break;
-        }
+        Rigidbody rb = pelotaActual.GetComponent<Rigidbody>();
+        if (rb == null) { Debug.LogError("[OASIS][Spawner] Sin Rigidbody en prefab!"); yield break; }
 
-        rb.isKinematic = false;
-        rb.useGravity = false;
-        rb.linearVelocity = Vector3.zero;
+        rb.isKinematic     = true;
+        rb.useGravity      = false;
+        rb.linearVelocity  = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
 
-        bossAI?.SetPelotaActual(_currentBall);
+        yield return new WaitForEndOfFrame();
+        if (pelotaActual == null) yield break;
 
-        if (bossServes)
-        {
-            bossAI?.PrepararSaque(_currentBall);
-        }
-        else
-        {
-            pelota.IniciarFlotando(spawnPosition, Quaternion.identity);
-        }
+        if (bossAI != null) bossAI.SetPelotaActual(pelotaActual);
+
+        rb.isKinematic = false;
+        rb.useGravity  = true;
+
+        bossAI?.PrepararSaque(pelotaActual);
     }
 
-    private Vector3 GetBossServePosition()
+    // ════════════════════════════════════════════════════════════════════════
+    void IniciarSaqueJugador()
     {
-        if (posicionSaqueJefe != null)
+        // Aseguramos que no quede ninguna pelota previa
+        if (pelotaActual != null) { Destroy(pelotaActual); pelotaActual = null; }
+
+        if (sistemaDeServicio == null)
         {
-            return posicionSaqueJefe.position;
+            Debug.LogError("[OASIS][Spawner] SistemaDeServicio no asignado — el jugador no puede sacar.");
+            return;
         }
 
-        return new Vector3(0f, 1.1f, 0.1f);
-    }
-
-    private Vector3 GetPlayerServePosition()
-    {
-        Transform head = Camera.main != null ? Camera.main.transform : null;
-        if (head != null)
-        {
-            Vector3 position = head.position;
-            position += head.right * headRelativeServeOffset.x;
-            position += Vector3.up * headRelativeServeOffset.y;
-            position += head.forward * headRelativeServeOffset.z;
-            return position;
-        }
-
-        if (posicionSaqueJugador != null)
-        {
-            return posicionSaqueJugador.position;
-        }
-
-        return new Vector3(0f, 1.2f, -1.1f);
+        sistemaDeServicio.IniciarSaqueJugador(this);
     }
 }

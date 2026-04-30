@@ -1,149 +1,145 @@
 using UnityEngine;
 
+/// <summary>
+/// Poner este script en el PREFAB de la pelota.
+/// Maneja:
+///   1. Float hasta que el jugador la agarre (turno del jugador)
+///   2. Efecto azul  → gravedad reducida (pelota liviana)
+///   3. Efecto naranja → gravedad aumentada (pelota pesada)
+///   Los efectos de color duran hasta que el boss vuelva a tocar la pelota.
+/// </summary>
 [RequireComponent(typeof(Rigidbody))]
-[RequireComponent(typeof(SphereCollider))]
 public class PelotaBehaviour : MonoBehaviour
 {
-    [Header("Gravity")]
-    public float gravedadNormal = 9.81f;
-    public float gravedadAzul = 2.5f;
+    // ─── CONFIGURACIÓN ───────────────────────────────────────────────────────
+    [Header("Gravedad normal de la pelota")]
+    public float gravedadNormal  =  9.81f;
+
+    [Header("Gravedad cuando la pelota es AZUL (liviana)")]
+    public float gravedadAzul    =  2.5f;
+
+    [Header("Gravedad cuando la pelota es NARANJA (pesada)")]
     public float gravedadNaranja = 22f;
 
-    [Header("Serve Float")]
-    [SerializeField] private float heldServeColliderRadius = 0.4f;
-    [SerializeField] private float grabDistanceThreshold = 0.03f;
+    // ─── ESTADO INTERNO ──────────────────────────────────────────────────────
+    private Rigidbody    rb;
+    private Renderer     rend;
+    private Color        colorOriginal;
 
-    private static readonly Color COLOR_AZUL = new Color(0.2f, 0.5f, 1f);
-    private static readonly Color COLOR_NARANJA = new Color(1f, 0.45f, 0f);
+    private bool  flotando          = false;  // true solo cuando es turno del jugador
+    private bool  efectoColorActivo = false;
+    private float gravedadActual    = 9.81f;
 
-    private Rigidbody _rb;
-    private Renderer _renderer;
-    private SphereCollider _sphereCollider;
-    private Color _baseColor = Color.white;
-    private bool _floatingOnServe;
-    private bool _colorEffectActive;
-    private float _currentGravity;
-    private Vector3 _floatTargetPosition;
-    private Quaternion _floatTargetRotation = Quaternion.identity;
+    // ─── COLORES ─────────────────────────────────────────────────────────────
+    private static readonly Color COLOR_AZUL    = new Color(0.2f, 0.5f, 1.0f);
+    private static readonly Color COLOR_NARANJA = new Color(1.0f, 0.45f, 0.0f);
 
-    private void Awake()
+    // ════════════════════════════════════════════════════════════════════════
+    void Awake()
     {
-        _rb = GetComponent<Rigidbody>();
-        _renderer = GetComponent<Renderer>();
-        _sphereCollider = GetComponent<SphereCollider>();
-
-        if (_renderer != null)
-        {
-            _baseColor = _renderer.material.color;
-        }
-
-        if (_sphereCollider != null)
-        {
-            _sphereCollider.radius = heldServeColliderRadius;
-        }
-
-        _rb.mass = 0.027f;
-        _rb.linearDamping = 0.08f;
-        _rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        _rb.interpolation = RigidbodyInterpolation.Interpolate;
-        _currentGravity = gravedadNormal;
+        rb   = GetComponent<Rigidbody>();
+        rend = GetComponent<Renderer>();
+        if (rend != null) colorOriginal = rend.material.color;
+        gravedadActual = gravedadNormal;
     }
 
-    private void Update()
+    void FixedUpdate()
     {
-        if (_floatingOnServe && WasServeBallTaken())
+        // Gravedad manual cuando hay efecto de color activo
+        // (UseGravity está en false durante el efecto)
+        if (efectoColorActivo && rb != null)
+        {
+            rb.AddForce(Vector3.down * gravedadActual, ForceMode.Acceleration);
+        }
+    }
+
+    void Update()
+    {
+        // ── Detección de agarre ──────────────────────────────────────────────
+        if (!flotando) return;
+
+        bool estaAgarrada = false;
+
+        // Método 1: OVRGrabbable (SDK viejo)
+        OVRGrabbable ovr = GetComponent<OVRGrabbable>();
+        if (ovr != null && ovr.isGrabbed) estaAgarrada = true;
+
+        // Método 2: fallback — si el RB tiene velocidad alguien la movió
+        if (!estaAgarrada && rb != null && rb.linearVelocity.magnitude > 0.3f)
+            estaAgarrada = true;
+
+        if (estaAgarrada)
         {
             ActivarFisicasNormales();
-            _floatingOnServe = false;
-            return;
-        }
-
-        if (!_floatingOnServe && GameManager.instance != null && GameManager.instance.waitingForPlayerServeHit)
-        {
-            OVRGrabbable legacyGrabbable = GetComponent<OVRGrabbable>();
-            bool isGrabbed = legacyGrabbable != null && legacyGrabbable.isGrabbed;
-            if (!isGrabbed && BallWatchdog.instance != null && !BallWatchdog.instance.IsMonitoring)
-            {
-                BallWatchdog.instance.IniciarMonitoreo();
-            }
+            flotando = false;
         }
     }
 
-    private void FixedUpdate()
+    // ════════════════════════════════════════════════════════════════════════
+    // API PÚBLICA — llamada desde BallSpawner y BossAI
+    // ════════════════════════════════════════════════════════════════════════
+
+    /// <summary>Llamar cuando es turno del jugador. La pelota flota quieta.</summary>
+    public void IniciarFlotando()
     {
-        if (_floatingOnServe)
+        flotando = true;
+        if (rb != null)
         {
-            _rb.useGravity = false;
-            _rb.linearVelocity = Vector3.zero;
-            _rb.angularVelocity = Vector3.zero;
-            _rb.MovePosition(_floatTargetPosition);
-            _rb.MoveRotation(_floatTargetRotation);
-            return;
-        }
-
-        if (_colorEffectActive)
-        {
-            _rb.AddForce(Vector3.down * _currentGravity, ForceMode.Acceleration);
+            rb.useGravity      = false;
+            rb.isKinematic     = false;
+            rb.linearVelocity        = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
         }
     }
 
-    public void IniciarFlotando(Vector3 targetPosition, Quaternion targetRotation)
-    {
-        _floatingOnServe = true;
-        _floatTargetPosition = targetPosition;
-        _floatTargetRotation = targetRotation;
-        _rb.useGravity = false;
-        _rb.isKinematic = false;
-        _rb.linearVelocity = Vector3.zero;
-        _rb.angularVelocity = Vector3.zero;
-    }
-
+    /// <summary>Activa efecto de color. azul=true → liviana, azul=false → pesada.</summary>
     public void SetEfectoColor(bool esAzul)
     {
-        _colorEffectActive = true;
-        _currentGravity = esAzul ? gravedadAzul : gravedadNaranja;
-        CambiarColor(esAzul ? COLOR_AZUL : COLOR_NARANJA);
-        _rb.useGravity = false;
+        efectoColorActivo = true;
+
+        if (esAzul)
+        {
+            gravedadActual = gravedadAzul;
+            CambiarColor(COLOR_AZUL);
+            Debug.Log("[Pelota] Efecto AZUL activado — gravedad reducida");
+        }
+        else
+        {
+            gravedadActual = gravedadNaranja;
+            CambiarColor(COLOR_NARANJA);
+            Debug.Log("[Pelota] Efecto NARANJA activado — gravedad aumentada");
+        }
+
+        // Desactivar la gravedad Unity y usar la manual
+        if (rb != null) rb.useGravity = false;
     }
 
+    /// <summary>Resetea color y gravedad al estado normal. Llamar cuando el boss toca la pelota.</summary>
     public void ResetarEfectoColor()
     {
-        if (!_colorEffectActive)
-        {
-            return;
-        }
+        if (!efectoColorActivo) return;
 
-        _colorEffectActive = false;
-        _currentGravity = gravedadNormal;
-        _rb.useGravity = !_floatingOnServe;
-        CambiarColor(_baseColor);
+        efectoColorActivo = false;
+        gravedadActual    = gravedadNormal;
+
+        if (rb != null) rb.useGravity = true;
+        CambiarColor(colorOriginal);
+        Debug.Log("[Pelota] Efecto de color reseteado — pelota normal");
     }
 
-    private bool WasServeBallTaken()
+    // ════════════════════════════════════════════════════════════════════════
+    // HELPERS
+    // ════════════════════════════════════════════════════════════════════════
+    void ActivarFisicasNormales()
     {
-        OVRGrabbable legacyGrabbable = GetComponent<OVRGrabbable>();
-        if (legacyGrabbable != null && legacyGrabbable.isGrabbed)
-        {
-            return true;
-        }
-
-        float distance = Vector3.Distance(transform.position, _floatTargetPosition);
-        return distance > grabDistanceThreshold;
+        if (rb == null) return;
+        rb.useGravity  = true;
+        rb.isKinematic = false;
+        Debug.Log("[Pelota] Agarrada por el jugador — físicas activadas");
     }
 
-    private void ActivarFisicasNormales()
+    void CambiarColor(Color c)
     {
-        _rb.isKinematic = false;
-        _rb.useGravity = true;
-        _rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        _rb.interpolation = RigidbodyInterpolation.Interpolate;
-    }
-
-    private void CambiarColor(Color color)
-    {
-        if (_renderer != null)
-        {
-            _renderer.material.color = color;
-        }
+        if (rend != null) rend.material.color = c;
     }
 }
