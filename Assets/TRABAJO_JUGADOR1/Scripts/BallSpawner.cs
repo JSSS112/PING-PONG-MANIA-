@@ -92,9 +92,13 @@ public class BallSpawner : MonoBehaviour
         // Aseguramos que no quede ninguna pelota previa
         if (pelotaActual != null) { Destroy(pelotaActual); pelotaActual = null; }
 
+        // Fallback: si no se asignó en el Inspector, lo buscamos en escena
+        if (sistemaDeServicio == null)
+            sistemaDeServicio = FindFirstObjectByType<SistemaDeServicio>();
+
         if (sistemaDeServicio == null)
         {
-            Debug.LogError("[OASIS][Spawner] SistemaDeServicio no asignado — el jugador no puede sacar.");
+            Debug.LogError("[OASIS][Spawner] SistemaDeServicio no encontrado — agrega un GameObject con el script o asigna en el Inspector.");
             return;
         }
 

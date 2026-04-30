@@ -12,14 +12,14 @@ using System.Collections;
 public class BossAI : MonoBehaviour
 {
     [Header("Velocidad fija del tiro")]
-    [Tooltip("Velocidad en Z hacia el jugador — negativo")]
-    public float velocidadZ = -3.0f;
+    [Tooltip("Velocidad en Z hacia el jugador — negativo. Más bajo = más suave.")]
+    public float velocidadZ = -2.0f;
 
-    [Tooltip("Velocidad en Y para el arco — positivo")]
-    public float velocidadY = 2.5f;
+    [Tooltip("Velocidad en Y para el arco — positivo. Más alto = arco más alto, pasa la red.")]
+    public float velocidadY = 3.2f;
 
     [Tooltip("Variación máxima en X (aleatoria, +/-) — para que no caiga siempre exacto en el mismo punto")]
-    public float variacionX = 0.3f;
+    public float variacionX = 0.2f;
 
     [Header("Saque")]
     [Tooltip("Segundos de espera antes de que el jefe lance el saque")]
