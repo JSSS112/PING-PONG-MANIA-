@@ -20,12 +20,17 @@ public class BallWatchdog : MonoBehaviour
     public float tiempoLimite = 6f;
     public float umbralVel    = 0.04f;
 
+    [Header("Z de la red — pelota con z > netZ está en lado del JEFE")]
+    public float netZ = 1.5f;
+
     [Header("OBLIGATORIO")]
     public BallSpawner ballSpawner;
 
     private float    timer  = 0f;
     private bool     activo = false;
     private Coroutine cor;
+    private Vector3  ultimaPosPelota;
+    private bool     hayUltimaPos = false;
 
     // ════════════════════════════════════════════════════════════════════════
     void Awake()
@@ -41,6 +46,7 @@ public class BallWatchdog : MonoBehaviour
     {
         activo = true;
         timer  = 0f;
+        hayUltimaPos = false;
         if (cor != null) StopCoroutine(cor);
         cor = StartCoroutine(Monitor());
     }
@@ -79,6 +85,8 @@ public class BallWatchdog : MonoBehaviour
             }
 
             Vector3 pos = p.transform.position;
+            ultimaPosPelota = pos;
+            hayUltimaPos    = true;
 
             // Verificar limites
             bool fuera = pos.y < yMinimo
@@ -118,7 +126,19 @@ public class BallWatchdog : MonoBehaviour
     void PelotaPerdida()
     {
         activo = false;
-        if (GameManager.instance != null && GameManager.instance.roundActive)
+        if (GameManager.instance == null || !GameManager.instance.roundActive) return;
+
+        // Si la pelota quedó del lado del JEFE (z > netZ), el jefe falló → punto al jugador.
+        // En cualquier otro caso (lado jugador o desconocido) → punto al jefe.
+        if (hayUltimaPos && ultimaPosPelota.z > netZ)
+        {
+            Debug.Log($"[Watchdog] Pelota perdida en lado JEFE (z={ultimaPosPelota.z:F2}) → punto al jugador.");
+            GameManager.instance.JugadorAnota();
+        }
+        else
+        {
+            Debug.Log($"[Watchdog] Pelota perdida en lado JUGADOR → punto al jefe.");
             GameManager.instance.JefeAnota();
+        }
     }
 }

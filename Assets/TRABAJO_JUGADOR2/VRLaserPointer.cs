@@ -41,6 +41,10 @@ public class VRLaserPointer : MonoBehaviour
     [Tooltip("Mando que dispara el click. Por defecto el derecho.")]
     public OVRInput.Controller mando = OVRInput.Controller.RTouch;
 
+    [Header("Visibilidad")]
+    [Tooltip("Si está activo, la línea solo se muestra cuando apunta a un elemento UI (no estorba durante el juego).")]
+    public bool soloMostrarAlApuntar = true;
+
     private readonly List<RaycastResult> hits = new List<RaycastResult>();
     private GameObject objetoApuntado;
 
@@ -129,11 +133,15 @@ public class VRLaserPointer : MonoBehaviour
         }
 
         // Actualizar visual
-        line.enabled = true;
-        line.SetPosition(0, origen);
-        line.SetPosition(1, puntoHit);
-        Color c2 = (objetoApuntado != null) ? colorHover : colorNormal;
-        line.startColor = c2; line.endColor = c2;
+        bool mostrar = (objetoApuntado != null) || !soloMostrarAlApuntar;
+        line.enabled = mostrar;
+        if (mostrar)
+        {
+            line.SetPosition(0, origen);
+            line.SetPosition(1, puntoHit);
+            Color c2 = (objetoApuntado != null) ? colorHover : colorNormal;
+            line.startColor = c2; line.endColor = c2;
+        }
 
         // Click
         if (objetoApuntado != null && OVRInput.GetDown(botonClick, mando))

@@ -40,6 +40,14 @@ public class GameManager : MonoBehaviour
     {
         if (instance == null) instance = this;
         else Destroy(gameObject);
+
+        // Asegurar que exista un VRLaserPointer para interactuar con el panel
+        // de resultado (botón "Jugar de nuevo") al final de la partida.
+        if (FindFirstObjectByType<VRLaserPointer>() == null)
+        {
+            GameObject go = new GameObject("LaserPointer");
+            go.AddComponent<VRLaserPointer>();
+        }
     }
 
     void Start()
