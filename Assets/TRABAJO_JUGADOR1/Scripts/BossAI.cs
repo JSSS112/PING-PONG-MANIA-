@@ -68,7 +68,8 @@ public class BossAI : MonoBehaviour
         rb.angularVelocity = Vector3.zero;
 
         Debug.Log($"[OASIS][Boss] Pelota lanzada v={v}");
-        BallWatchdog.instance?.RegistrarGolpe();
+        if (GameManager.instance != null) GameManager.instance.RegistrarGolpeRaqueta();
+        else BallWatchdog.instance?.RegistrarGolpe();
 
         yield return new WaitForSeconds(1f);
         ocupado = false;
@@ -101,7 +102,8 @@ public class BossAI : MonoBehaviour
         rb.angularVelocity = Vector3.zero;
 
         Debug.Log($"[OASIS][Boss] Saque lanzado v={v}");
-        BallWatchdog.instance?.RegistrarGolpe();
+        if (GameManager.instance != null) GameManager.instance.RegistrarGolpeRaqueta();
+        else BallWatchdog.instance?.RegistrarGolpe();
 
         yield return new WaitForSeconds(1f);
         ocupado = false;

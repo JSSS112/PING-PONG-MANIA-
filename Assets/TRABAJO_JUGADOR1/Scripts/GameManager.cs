@@ -35,6 +35,10 @@ public class GameManager : MonoBehaviour
     // Saque alternado por numero de ronda: par = jugador, impar = jefe
     private int numeroRonda = 0;
 
+    // Lógica de rebotes para puntuación correcta de ping pong
+    private enum LadoRebote { Ninguno, Jugador, Jefe }
+    private LadoRebote ultimoRebote = LadoRebote.Ninguno;
+
     // ════════════════════════════════════════════════════════════════════════
     void Awake()
     {
@@ -143,6 +147,7 @@ public class GameManager : MonoBehaviour
     IEnumerator IniciarRonda()
     {
         bool jefeSaca = (numeroRonda % 2 != 0);
+        ultimoRebote = LadoRebote.Ninguno;
 
         Debug.Log($"[OASIS] Ronda {numeroRonda} | Saca: {(jefeSaca ? "JEFE" : "JUGADOR")}");
 
@@ -216,11 +221,44 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
 
-    // Rebote en la mesa
+    // ════════════════════════════════════════════════════════════════════════
+    // REBOTES Y GOLPES — lógica simple de ping pong
+    // ════════════════════════════════════════════════════════════════════════
+    // Regla: si la pelota rebota 2 veces seguidas en el mismo lado sin que ese
+    // jugador la golpee, ese lado pierde el punto. Cuando la raqueta del jugador
+    // o el jefe golpean, se reinicia el contador.
     public void RegistrarRebote(bool ladoJefe)
     {
-        if (!roundActive) return;
-        Debug.Log($"[OASIS] Rebote en: {(ladoJefe ? "LADO JEFE" : "LADO JUGADOR")}");
+        if (!roundActive || gameOver) return;
+
+        LadoRebote nuevoLado = ladoJefe ? LadoRebote.Jefe : LadoRebote.Jugador;
+        Debug.Log($"[OASIS] Rebote en: {(ladoJefe ? "LADO JEFE" : "LADO JUGADOR")} | anterior={ultimoRebote}");
+
+        if (ultimoRebote == nuevoLado)
+        {
+            // 2do rebote consecutivo en el mismo lado → ese lado falló
+            ultimoRebote = LadoRebote.Ninguno;
+            if (ladoJefe)
+            {
+                Debug.Log("[OASIS] Doble rebote lado JEFE → punto JUGADOR");
+                JugadorAnota();
+            }
+            else
+            {
+                Debug.Log("[OASIS] Doble rebote lado JUGADOR → punto JEFE");
+                JefeAnota();
+            }
+            return;
+        }
+
+        ultimoRebote = nuevoLado;
+        BallWatchdog.instance?.RegistrarGolpe();
+    }
+
+    // Llamar desde RaquetaJugador y BossAI cuando golpean la pelota.
+    public void RegistrarGolpeRaqueta()
+    {
+        ultimoRebote = LadoRebote.Ninguno;
         BallWatchdog.instance?.RegistrarGolpe();
     }
 }
