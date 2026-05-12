@@ -1,145 +1,94 @@
 using UnityEngine;
 
 /// <summary>
-/// Poner este script en el PREFAB de la pelota.
-/// Maneja:
-///   1. Float hasta que el jugador la agarre (turno del jugador)
-///   2. Efecto azul  → gravedad reducida (pelota liviana)
-///   3. Efecto naranja → gravedad aumentada (pelota pesada)
-///   Los efectos de color duran hasta que el boss vuelva a tocar la pelota.
+/// Script de la pelota — versión MVP simple y predecible.
+///
+/// Responsabilidades:
+///   1. Configurar el Rigidbody con valores consistentes al spawnear (masa,
+///      drag, gravedad, modo de colisión continuo). De este modo, sin importar
+///      qué tenga el prefab, la pelota siempre arranca con la misma física.
+///   2. Aplicar un PhysicsMaterial runtime a todos los colliders no-trigger
+///      para garantizar un rebote consistente (bounciness fijo, combine =
+///      Average — el rebote nunca gana energía).
+///   3. Limitar la velocidad máxima en FixedUpdate para que la pelota nunca
+///      "salga disparada como si nada".
+///
+/// No toca isKinematic / useGravity en runtime (eso lo hacen BallSpawner,
+/// SistemaDeServicio y BossAI durante saques y lanzamientos). Una vez que la
+/// pelota está libre, esta clase no interfiere — solo vigila el cap de velocidad.
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
 public class PelotaBehaviour : MonoBehaviour
 {
-    // ─── CONFIGURACIÓN ───────────────────────────────────────────────────────
-    [Header("Gravedad normal de la pelota")]
-    public float gravedadNormal  =  9.81f;
+    [Header("Físicas")]
+    [Tooltip("Velocidad máxima absoluta — nunca debe ir más rápido que esto.")]
+    public float velocidadMaxima = 12f;
 
-    [Header("Gravedad cuando la pelota es AZUL (liviana)")]
-    public float gravedadAzul    =  2.5f;
+    [Tooltip("Masa de la pelota en kg. 0.05 da un golpe ágil pero no flotante.")]
+    public float masa = 0.05f;
 
-    [Header("Gravedad cuando la pelota es NARANJA (pesada)")]
-    public float gravedadNaranja = 22f;
+    [Tooltip("Resistencia al aire lineal. Bajo = vuelo limpio.")]
+    public float dragLineal = 0.02f;
 
-    // ─── ESTADO INTERNO ──────────────────────────────────────────────────────
-    private Rigidbody    rb;
-    private Renderer     rend;
-    private Color        colorOriginal;
+    [Tooltip("Resistencia al aire angular. Bajo = puede girar libre.")]
+    public float dragAngular = 0.05f;
 
-    private bool  flotando          = false;  // true solo cuando es turno del jugador
-    private bool  efectoColorActivo = false;
-    private float gravedadActual    = 9.81f;
+    [Header("Material de física (runtime)")]
+    [Tooltip("0..1. 0.82 da un rebote vivo pero sin ganar energía nunca.")]
+    [Range(0f, 1f)] public float bounciness = 0.82f;
 
-    // ─── COLORES ─────────────────────────────────────────────────────────────
-    private static readonly Color COLOR_AZUL    = new Color(0.2f, 0.5f, 1.0f);
-    private static readonly Color COLOR_NARANJA = new Color(1.0f, 0.45f, 0.0f);
+    [Tooltip("Fricción al deslizar. Bajo = no se traba contra la mesa.")]
+    [Range(0f, 1f)] public float friccion = 0.1f;
 
-    // ════════════════════════════════════════════════════════════════════════
+    private Rigidbody rb;
+
     void Awake()
     {
-        rb   = GetComponent<Rigidbody>();
-        rend = GetComponent<Renderer>();
-        if (rend != null) colorOriginal = rend.material.color;
-        gravedadActual = gravedadNormal;
+        rb = GetComponent<Rigidbody>();
+
+        // Configuración del Rigidbody — siempre la misma, sin importar el prefab
+        rb.mass                   = masa;
+        rb.linearDamping          = dragLineal;
+        rb.angularDamping         = dragAngular;
+        rb.useGravity             = true;
+        rb.isKinematic            = false;
+        rb.interpolation          = RigidbodyInterpolation.Interpolate;
+        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+
+        // PhysicsMaterial runtime aplicado a todos los colliders sólidos
+        PhysicsMaterial mat = new PhysicsMaterial("PelotaRuntime")
+        {
+            dynamicFriction = friccion,
+            staticFriction  = friccion,
+            bounciness      = bounciness,
+            frictionCombine = PhysicsMaterialCombine.Average,
+            bounceCombine   = PhysicsMaterialCombine.Average
+        };
+
+        foreach (Collider col in GetComponentsInChildren<Collider>(true))
+        {
+            if (col == null || col.isTrigger) continue;
+            col.sharedMaterial = mat;
+        }
     }
 
     void FixedUpdate()
     {
-        // Gravedad manual cuando hay efecto de color activo
-        // (UseGravity está en false durante el efecto)
-        if (efectoColorActivo && rb != null)
-        {
-            rb.AddForce(Vector3.down * gravedadActual, ForceMode.Acceleration);
-        }
-    }
+        // Cap de velocidad — único guardarraíl en runtime. Si algo (raqueta,
+        // boss, colisión rara) llegó a empujar la pelota más allá del máximo,
+        // la clampeamos sin tocar nada más.
+        if (rb == null || rb.isKinematic) return;
 
-    void Update()
-    {
-        // ── Detección de agarre ──────────────────────────────────────────────
-        if (!flotando) return;
-
-        bool estaAgarrada = false;
-
-        // Método 1: OVRGrabbable (SDK viejo)
-        OVRGrabbable ovr = GetComponent<OVRGrabbable>();
-        if (ovr != null && ovr.isGrabbed) estaAgarrada = true;
-
-        // Método 2: fallback — si el RB tiene velocidad alguien la movió
-        if (!estaAgarrada && rb != null && rb.linearVelocity.magnitude > 0.3f)
-            estaAgarrada = true;
-
-        if (estaAgarrada)
-        {
-            ActivarFisicasNormales();
-            flotando = false;
-        }
+        Vector3 v = rb.linearVelocity;
+        if (v.magnitude > velocidadMaxima)
+            rb.linearVelocity = v.normalized * velocidadMaxima;
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // API PÚBLICA — llamada desde BallSpawner y BossAI
+    // API legada — stubs no-op por compatibilidad con UnityEvents en escenas.
+    // Si alguien los llama, simplemente no pasa nada.
     // ════════════════════════════════════════════════════════════════════════
-
-    /// <summary>Llamar cuando es turno del jugador. La pelota flota quieta.</summary>
-    public void IniciarFlotando()
-    {
-        flotando = true;
-        if (rb != null)
-        {
-            rb.useGravity      = false;
-            rb.isKinematic     = false;
-            rb.linearVelocity        = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-        }
-    }
-
-    /// <summary>Activa efecto de color. azul=true → liviana, azul=false → pesada.</summary>
-    public void SetEfectoColor(bool esAzul)
-    {
-        efectoColorActivo = true;
-
-        if (esAzul)
-        {
-            gravedadActual = gravedadAzul;
-            CambiarColor(COLOR_AZUL);
-            Debug.Log("[Pelota] Efecto AZUL activado — gravedad reducida");
-        }
-        else
-        {
-            gravedadActual = gravedadNaranja;
-            CambiarColor(COLOR_NARANJA);
-            Debug.Log("[Pelota] Efecto NARANJA activado — gravedad aumentada");
-        }
-
-        // Desactivar la gravedad Unity y usar la manual
-        if (rb != null) rb.useGravity = false;
-    }
-
-    /// <summary>Resetea color y gravedad al estado normal. Llamar cuando el boss toca la pelota.</summary>
-    public void ResetarEfectoColor()
-    {
-        if (!efectoColorActivo) return;
-
-        efectoColorActivo = false;
-        gravedadActual    = gravedadNormal;
-
-        if (rb != null) rb.useGravity = true;
-        CambiarColor(colorOriginal);
-        Debug.Log("[Pelota] Efecto de color reseteado — pelota normal");
-    }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // HELPERS
-    // ════════════════════════════════════════════════════════════════════════
-    void ActivarFisicasNormales()
-    {
-        if (rb == null) return;
-        rb.useGravity  = true;
-        rb.isKinematic = false;
-        Debug.Log("[Pelota] Agarrada por el jugador — físicas activadas");
-    }
-
-    void CambiarColor(Color c)
-    {
-        if (rend != null) rend.material.color = c;
-    }
+    public void IniciarFlotando() { }
+    public void SetEfectoColor(bool esAzul) { }
+    public void ResetarEfectoColor() { }
 }

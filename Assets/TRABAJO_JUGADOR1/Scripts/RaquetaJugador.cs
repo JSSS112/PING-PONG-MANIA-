@@ -23,13 +23,13 @@ public class RaquetaJugador : MonoBehaviour
 
     [Header("Golpe a la pelota")]
     [Tooltip("Velocidad mínima de la pelota tras un golpe — garantiza que siempre rebote.")]
-    public float fuerzaMinima = 3.5f;
+    public float fuerzaMinima = 4.0f;
     [Tooltip("Velocidad máxima de la pelota tras un golpe — evita tiros imposibles.")]
-    public float velocidadMax = 11f;
+    public float velocidadMax = 10f;
     [Tooltip("Cuánta energía conserva la pelota al rebotar contra la raqueta (0..1).")]
     [Range(0f, 1f)] public float coefRebote = 0.75f;
-    [Tooltip("Cuánto se suma de la velocidad del swing al golpe.")]
-    public float multiplicadorGolpe = 1.0f;
+    [Tooltip("Cuánto se suma de la velocidad del swing al golpe. 0.5 = swing aporta 50%.")]
+    [Range(0f, 1f)] public float multiplicadorGolpe = 0.5f;
 
     private Rigidbody rb;
 
@@ -102,8 +102,10 @@ public class RaquetaJugador : MonoBehaviour
         Vector3 reflejada = Vector3.Reflect(velPelota, normal) * coefRebote;
 
         // Impulso del swing: solo cuando la raqueta se mueve hacia la pelota.
+        // Clampeamos el multiplicador a [0..1] por si el inspector tiene un valor viejo.
+        float multGolpe   = Mathf.Clamp01(multiplicadorGolpe);
         float compRaqueta = Mathf.Max(0f, Vector3.Dot(velRaqueta, normal));
-        Vector3 impulso   = normal * compRaqueta * multiplicadorGolpe;
+        Vector3 impulso   = normal * compRaqueta * multGolpe;
 
         Vector3 vFinal = reflejada + impulso;
 
@@ -112,9 +114,10 @@ public class RaquetaJugador : MonoBehaviour
         if (compNormal < fuerzaMinima)
             vFinal += normal * (fuerzaMinima - compNormal);
 
-        // Tope para que el juego siga jugable
-        if (vFinal.magnitude > velocidadMax)
-            vFinal = vFinal.normalized * velocidadMax;
+        // Tope para que el juego siga jugable (también clampeado por si quedó alto).
+        float vMax = Mathf.Min(velocidadMax, 11f);
+        if (vFinal.magnitude > vMax)
+            vFinal = vFinal.normalized * vMax;
 
         rbPelota.linearVelocity  = vFinal;
         rbPelota.angularVelocity = Vector3.zero;
