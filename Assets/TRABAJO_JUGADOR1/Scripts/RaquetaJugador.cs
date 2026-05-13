@@ -97,5 +97,10 @@ public class RaquetaJugador : MonoBehaviour
 
         rbPelota.linearVelocity = vFinal;
         // NO tocamos angularVelocity: dejamos que el efecto natural permanezca.
+
+        // Avisar al GameManager para resetear el contador de doble-rebote
+        // y al watchdog para que no declare la pelota perdida.
+        if (GameManager.instance != null) GameManager.instance.RegistrarGolpeRaqueta();
+        else BallWatchdog.instance?.RegistrarGolpe();
     }
 }

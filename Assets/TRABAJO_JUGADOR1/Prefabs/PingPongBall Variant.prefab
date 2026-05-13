@@ -10,19 +10,27 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 552227441605845383, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 1666668974715502204, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2722542454455255234, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 2907110986803482667, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4001369352245615491, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      propertyPath: _pointable
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 4158446642074262646, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      propertyPath: _pointableElement
+      value: 
       objectReference: {fileID: 0}
     - target: {fileID: 4779881054689550583, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: _sleepFrames
@@ -34,11 +42,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 4885902718349957954, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4890650667980028949, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5058694689523111690, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_RootOrder
@@ -85,23 +93,23 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
-      propertyPath: m_CollisionDetection
-      value: 2
+      propertyPath: m_Drag
+      value: 0.02
       objectReference: {fileID: 0}
     - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Mass
       value: 0.0027
       objectReference: {fileID: 0}
     - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
-      propertyPath: m_Drag
-      value: 0.02
+      propertyPath: m_UseGravity
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_AngularDrag
       value: 0.05
       objectReference: {fileID: 0}
     - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
-      propertyPath: m_UseGravity
+      propertyPath: m_Interpolate
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
@@ -109,20 +117,16 @@ PrefabInstance:
       value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
-      propertyPath: m_Interpolate
-      value: 1
+      propertyPath: m_CollisionDetection
+      value: 2
       objectReference: {fileID: 0}
-    - target: {fileID: 9121621071314520240, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
-      propertyPath: m_Material
-      value:
-      objectReference: {fileID: 13400000, guid: b8ab33702a3b84547ad8b06543ea0325, type: 2}
     - target: {fileID: 5058694689523111694, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Name
       value: PingPongBall Variant
       objectReference: {fileID: 0}
     - target: {fileID: 5058694689523111694, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5058694689523111694, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_TagString
@@ -130,11 +134,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5058694689719864501, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5058694690052318383, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 5058694690882582914, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: _physicsGrabbable
@@ -142,34 +146,72 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5058694691058195596, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5145015199458577340, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      propertyPath: grabbable
+      value: 
       objectReference: {fileID: 0}
     - target: {fileID: 6388042233767564507, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7634156390364167510, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      propertyPath: _pointableElement
+      value: 
       objectReference: {fileID: 0}
     - target: {fileID: 7662457650564553960, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7699326130719301650, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 7706358227994308420, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8250044495823523364, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 8311111057535335920, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Layer
-      value: 4
+      value: 0
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    - target: {fileID: 9121621071314520240, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      propertyPath: m_Material
+      value: 
+      objectReference: {fileID: 13400000, guid: b8ab33702a3b84547ad8b06543ea0325, type: 2}
+    m_RemovedComponents:
+    - {fileID: 5058694689523111692, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+    - {fileID: 4779881054689550583, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+    - {fileID: 5145015199458577340, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 5058694689523111694, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -7833071402056636510}
   m_SourcePrefab: {fileID: 100100000, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+--- !u!1 &7493224103021844553 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5058694689523111694, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+  m_PrefabInstance: {fileID: 2434582190465290055}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &-7833071402056636510
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7493224103021844553}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 52041deb71cf85c47ad5363a13bb68bc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PelotaBehaviour
+  velocidadMaxima: 12
+  yMinima: -3
+  tiempoQuietaMax: 4

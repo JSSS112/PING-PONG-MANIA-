@@ -13002,6 +13002,37 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1097346731}
   m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &1103674343
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1103674344}
+  m_Layer: 0
+  m_Name: BossTargetJugador
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1103674344
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1103674343}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0.384, y: 1.577, z: 0.766}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1104092943
 GameObject:
   m_ObjectHideFlags: 0
@@ -13397,10 +13428,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SistemaDeServicio
   manoIzquierda: {fileID: 1139569273}
+  prefabPelota: {fileID: 7493224103021844553, guid: 738398f5e9a420649bba5a062a60471d, type: 3}
   offsetPelota: {x: 0, y: 0.04, z: 0.04}
-  multiplicadorLanzamiento: 1
-  velocidadMinimaSoltar: 1.5
-  usarOVRInput: 1
+  botonSaque: 8192
+  controlador: 1
 --- !u!4 &1115602135
 Transform:
   m_ObjectHideFlags: 0
@@ -15043,8 +15074,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::BallSpawner
   ballPrefab: {fileID: 7493224103021844553, guid: 738398f5e9a420649bba5a062a60471d, type: 3}
   posicionSaqueJefe: {fileID: 1159170125}
-  bossAI: {fileID: 1957094249}
-  sistemaDeServicio: {fileID: 1115602134}
+  bossAI: {fileID: 0}
 --- !u!1 &1288207459
 GameObject:
   m_ObjectHideFlags: 0
@@ -19822,10 +19852,10 @@ MonoBehaviour:
   manoDerecha: {fileID: 1745323765}
   offsetPosicion: {x: 0, y: 0, z: 0}
   offsetRotacion: {x: 0, y: 0, z: 0}
-  fuerzaMinima: 3.5
-  velocidadMax: 11
-  coefRebote: 0.75
-  multiplicadorGolpe: 1
+  velocidadMinimaSalida: 4
+  velocidadMaxima: 10
+  coeficienteRebote: 0.9
+  aporteSwing: 0.35
 --- !u!1 &1646412378
 GameObject:
   m_ObjectHideFlags: 0
@@ -24779,10 +24809,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 26cec89920e16ee40b62a07ef38ce2e5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::BossAI
-  velocidadZ: -2.5
-  velocidadY: 3
-  variacionX: 0.25
-  delaySaque: 1.5
+  objetivoJugador: {fileID: 1103674344}
+  velocidadHorizontal: 3.5
+  componenteVertical: 3
+  variacionLateral: 0.4
+  congelado: 0.1
+  delaySaque: 1.2
+  cooldown: 1
 --- !u!54 &1957094250
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -27015,3 +27048,4 @@ SceneRoots:
   - {fileID: 1636843652}
   - {fileID: 1115602135}
   - {fileID: 831330400}
+  - {fileID: 1103674344}
