@@ -86,8 +86,36 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_CollisionDetection
+      value: 2
+      objectReference: {fileID: 0}
+    - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      propertyPath: m_Mass
+      value: 0.0027
+      objectReference: {fileID: 0}
+    - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      propertyPath: m_Drag
+      value: 0.02
+      objectReference: {fileID: 0}
+    - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      propertyPath: m_AngularDrag
+      value: 0.05
+      objectReference: {fileID: 0}
+    - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      propertyPath: m_UseGravity
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      propertyPath: m_IsKinematic
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5058694689523111693, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      propertyPath: m_Interpolate
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 9121621071314520240, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
+      propertyPath: m_Material
+      value:
+      objectReference: {fileID: 13400000, guid: b8ab33702a3b84547ad8b06543ea0325, type: 2}
     - target: {fileID: 5058694689523111694, guid: b2151d111ebb7114294d9b82456e8358, type: 3}
       propertyPath: m_Name
       value: PingPongBall Variant

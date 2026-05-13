@@ -1,44 +1,40 @@
-using UnityEngine;
 using System.Collections;
+using UnityEngine;
 
 /// <summary>
-/// BOSS IA — versión MVP simplificada
-/// - Estático (solo decoración, no se mueve)
-/// - Lanza la pelota SIEMPRE con la misma velocidad fija + leve variación en X
-/// - Sin probabilidades, sin efectos de color, sin bola señuelo
-/// - Cuando la pelota llega a su zona → congela 0.1s → lanza con vector fijo
-/// - El saque del jefe usa exactamente el mismo vector
+/// Boss estatico. Al entrar la pelota en su trigger:
+///   1) La congela 0.1 s.
+///   2) La lanza con arco apuntando hacia la mesa del jugador,
+///      con leve variacion lateral para que no sea totalmente predecible.
+/// Asi la devolucion casi siempre cae en el lado del jugador.
 /// </summary>
 public class BossAI : MonoBehaviour
 {
-    [Header("Velocidad fija del tiro")]
-    [Tooltip("Velocidad en Z hacia el jugador — negativo. Más bajo = más suave.")]
-    public float velocidadZ = -2.5f;
+    [Header("Referencias")]
+    [Tooltip("Punto al que el boss apunta sus devoluciones. Idealmente el centro de la mitad del jugador en la mesa.")]
+    public Transform objetivoJugador;
 
-    [Tooltip("Velocidad en Y para el arco — positivo. Más alto = arco más alto, pasa la red.")]
-    public float velocidadY = 5.0f;
+    [Header("Parametros del saque")]
+    [Tooltip("Magnitud de la componente horizontal en m/s. Sube si la pelota no llega; baja si pasa larga.")]
+    public float velocidadHorizontal = 3.5f;
 
-    [Tooltip("Variación máxima en X (aleatoria, +/-) — para que no caiga siempre exacto en el mismo punto")]
-    public float variacionX = 0.25f;
+    [Tooltip("Componente vertical en m/s. Da el arco para que pase la red.")]
+    public float componenteVertical = 4.5f;
 
-    [Header("Saque")]
-    [Tooltip("Segundos de espera antes de que el jefe lance el saque")]
-    public float delaySaque = 1.5f;
+    [Tooltip("Variacion lateral aleatoria en m/s (perpendicular a la direccion al jugador, no eje X mundial).")]
+    public float variacionLateral = 0.4f;
+
+    [Tooltip("Tiempo congelada antes de salir.")]
+    public float congelado = 0.1f;
+
+    [Tooltip("Cooldown antes de poder volver a devolver otra pelota.")]
+    public float cooldown = 1f;
 
     private bool ocupado = false;
 
-    // ════════════════════════════════════════════════════════════════════════
-    // DETECCIÓN: pelota toca al jefe
-    // ════════════════════════════════════════════════════════════════════════
     void OnTriggerEnter(Collider other)
     {
-        if (!other.CompareTag("Ball")) return;
-        if (ocupado)                   return;
-        if (GameManager.instance == null || !GameManager.instance.roundActive) return;
-
-        BallSpawner spawner = FindFirstObjectByType<BallSpawner>();
-        if (spawner != null && spawner.GetPelotaActual() != other.gameObject) return;
-
+        if (!other.CompareTag("Ball") || ocupado) return;
         Rigidbody rb = other.GetComponent<Rigidbody>();
         if (rb == null) return;
 
@@ -46,79 +42,51 @@ public class BossAI : MonoBehaviour
         StartCoroutine(LanzarPelota(rb));
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // LANZAR PELOTA — vector fijo
-    // ════════════════════════════════════════════════════════════════════════
     IEnumerator LanzarPelota(Rigidbody rb)
     {
-        if (rb == null) { ocupado = false; yield break; }
-
+        // Congelar momentaneamente.
         rb.isKinematic = true;
-        rb.useGravity  = false;
-
-        yield return new WaitForSeconds(0.1f);
-
-        if (rb == null) { ocupado = false; yield break; }
-
-        Vector3 v = CalcularVelocidad();
-
-        rb.isKinematic     = false;
-        rb.useGravity      = true;
-        rb.linearVelocity  = v;
+        rb.useGravity = false;
+        rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
 
-        Debug.Log($"[OASIS][Boss] Pelota lanzada v={v}");
-        if (GameManager.instance != null) GameManager.instance.RegistrarGolpeRaqueta();
-        else BallWatchdog.instance?.RegistrarGolpe();
+        yield return new WaitForSeconds(congelado);
 
-        yield return new WaitForSeconds(1f);
-        ocupado = false;
-    }
+        // Si la pelota fue destruida durante el congelado, abortar.
+        if (rb == null)
+        {
+            ocupado = false;
+            yield break;
+        }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // SAQUE DEL JEFE
-    // ════════════════════════════════════════════════════════════════════════
-    public void PrepararSaque(GameObject pelota)
-    {
-        StartCoroutine(Saque(pelota));
-    }
+        // Calcular direccion horizontal hacia el jugador (ignorando Y).
+        Vector3 direccionHorizontal;
+        if (objetivoJugador != null)
+        {
+            Vector3 hacia = objetivoJugador.position - rb.position;
+            hacia.y = 0f;
+            direccionHorizontal = hacia.sqrMagnitude > 0.001f ? hacia.normalized : -transform.forward;
+        }
+        else
+        {
+            direccionHorizontal = -transform.forward; // fallback si no hay objetivo asignado
+        }
 
-    IEnumerator Saque(GameObject pelota)
-    {
-        ocupado = true;
+        // Lateral perpendicular a la direccion al jugador (no eje X mundial).
+        Vector3 lateral = Vector3.Cross(Vector3.up, direccionHorizontal);
+        float varLat = Random.Range(-variacionLateral, variacionLateral);
 
-        yield return new WaitForSeconds(delaySaque);
+        Vector3 v = direccionHorizontal * velocidadHorizontal
+                  + lateral * varLat
+                  + Vector3.up * componenteVertical;
 
-        if (pelota == null) { ocupado = false; yield break; }
-
-        Rigidbody rb = pelota.GetComponent<Rigidbody>();
-        if (rb == null) { ocupado = false; yield break; }
-
-        Vector3 v = CalcularVelocidad();
-
-        rb.isKinematic     = false;
-        rb.useGravity      = true;
-        rb.linearVelocity  = v;
+        // Devolver al mundo fisico.
+        rb.isKinematic = false;
+        rb.useGravity = true;
+        rb.linearVelocity = v;
         rb.angularVelocity = Vector3.zero;
 
-        Debug.Log($"[OASIS][Boss] Saque lanzado v={v}");
-        if (GameManager.instance != null) GameManager.instance.RegistrarGolpeRaqueta();
-        else BallWatchdog.instance?.RegistrarGolpe();
-
-        yield return new WaitForSeconds(1f);
-        ocupado = false;
-    }
-
-    // ════════════════════════════════════════════════════════════════════════
-    Vector3 CalcularVelocidad()
-    {
-        float vx = Random.Range(-variacionX, variacionX);
-        return new Vector3(vx, velocidadY, velocidadZ);
-    }
-
-    // Llamado por BallSpawner cuando crea nueva pelota
-    public void SetPelotaActual(GameObject pelota)
-    {
+        yield return new WaitForSeconds(cooldown);
         ocupado = false;
     }
 }

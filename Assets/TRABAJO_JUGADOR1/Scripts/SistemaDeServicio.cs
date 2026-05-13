@@ -1,181 +1,93 @@
 using UnityEngine;
 
 /// <summary>
-/// Sistema de saque del jugador (estilo "10 Billion Table Tennis").
+/// Saque del jugador, version minima:
+///   1) Aprieta el gatillo izquierdo  -> aparece una pelota nueva en la mano.
+///   2) Mientras lo mantenga apretado -> la pelota sigue la mano (kinematic).
+///   3) Suelta el gatillo             -> la pelota se vuelve dinamica con gravedad y CAE.
 ///
-/// Flujo:
-/// 1. GameManager → BallSpawner.SpawnBall(false) → BallSpawner llama a IniciarSaqueJugador()
-/// 2. Este script entra en "esperandoTrigger".
-/// 3. El jugador presiona el trigger izquierdo → se instancia la pelota en la mano izquierda
-///    (isKinematic=true, sigue la mano cada FixedUpdate).
-/// 4. Mientras sostiene el trigger, calculamos la velocidad de la mano.
-/// 5. Al soltar el trigger → isKinematic=false, useGravity=true, rb.linearVelocity = velocidadMano.
-/// 6. La pelota se registra en BallSpawner como "pelota actual" y queda libre para ser golpeada.
-///
-/// Setup en Unity:
-/// - Crear GameObject "SistemaServicio" en la jerarquía
-/// - Añadir este script
-/// - En el Inspector: arrastrar el LeftHandAnchor del Camera Rig a "manoIzquierda"
-/// - Asignar este componente al campo BallSpawner.sistemaDeServicio
+/// NO se transfiere velocidad de la mano. NO hay multiplicadores. NO hay
+/// velocidad minima vertical. La pelota solo cae. Si el jugador quiere
+/// que la pelota suba, que la golpee con la raqueta.
 /// </summary>
 public class SistemaDeServicio : MonoBehaviour
 {
-    [Header("Mano izquierda del Camera Rig (LeftHandAnchor)")]
-    [Tooltip("Si se deja vacío se busca por nombre 'LeftHandAnchor' en escena.")]
+    [Header("Referencias")]
+    [Tooltip("LeftHandAnchor del OVRCameraRig.")]
     public Transform manoIzquierda;
 
-    [Header("Offset de la pelota respecto a la mano izquierda")]
-    public Vector3 offsetPelota = new Vector3(0f, 0.04f, 0.04f);
+    [Tooltip("Prefab PingPongBall Variant.")]
+    public GameObject prefabPelota;
 
-    [Header("Lanzamiento")]
-    [Tooltip("Multiplicador para la velocidad heredada de la mano al soltar.")]
-    public float multiplicadorLanzamiento = 1.0f;
-    [Tooltip("Velocidad mínima al soltar (por si el jugador no movió la mano).")]
-    public float velocidadMinimaSoltar = 1.5f;
+    [Tooltip("Offset de la pelota respecto a la mano (un poco abajo y adelante para que no choque con la mano).")]
+    public Vector3 offsetPelota = new Vector3(0f, -0.05f, 0.05f);
 
-    [Header("Controles (OVRInput)")]
-    [Tooltip("Si tu proyecto NO usa OVRInput, desactivar esto y conectar IniciarSaque/SoltarPelota desde otro input.")]
-    public bool usarOVRInput = true;
+    [Header("Input VR")]
+    public OVRInput.Button botonSaque = OVRInput.Button.PrimaryIndexTrigger;
+    public OVRInput.Controller controlador = OVRInput.Controller.LTouch;
 
-    // ─── Estado ──────────────────────────────────────────────────────────────
-    private enum Estado { Inactivo, EsperandoTrigger, SosteniendoPelota }
-    private Estado estado = Estado.Inactivo;
-
-    private BallSpawner ballSpawner;
     private GameObject pelotaActual;
-    private Rigidbody  rbPelota;
+    private Rigidbody rbPelota;
 
-    private Vector3 posManoPrev;
-    private Vector3 velocidadMano;
-
-    // ════════════════════════════════════════════════════════════════════════
-    void Start()
-    {
-        if (manoIzquierda == null)
-        {
-            GameObject go = GameObject.Find("LeftHandAnchor");
-            if (go == null) go = GameObject.Find("LeftControllerAnchor");
-            if (go != null) manoIzquierda = go.transform;
-        }
-
-        if (manoIzquierda == null)
-            Debug.LogError("[OASIS][Servicio] No se encontró LeftHandAnchor — asignar manualmente.");
-    }
-
-    /// <summary>Llamado por BallSpawner cuando le toca al jugador sacar.</summary>
-    public void IniciarSaqueJugador(BallSpawner spawner)
-    {
-        ballSpawner = spawner;
-        estado = Estado.EsperandoTrigger;
-        // Mientras esperamos al jugador no debe correr el watchdog
-        // (no hay pelota y se gatillaría "Pelota no encontrada")
-        BallWatchdog.instance?.DetenerMonitoreo();
-        Debug.Log("[OASIS][Servicio] Esperando trigger izquierdo del jugador para sacar...");
-    }
-
-    /// <summary>Cancela un saque pendiente (ej. final de ronda, reinicio).</summary>
-    public void CancelarSaque()
-    {
-        if (pelotaActual != null) { Destroy(pelotaActual); pelotaActual = null; }
-        rbPelota = null;
-        estado = Estado.Inactivo;
-    }
-
-    // ════════════════════════════════════════════════════════════════════════
     void Update()
     {
-        if (!usarOVRInput) return;
+        if (manoIzquierda == null || prefabPelota == null) return;
 
-        if (estado == Estado.EsperandoTrigger)
+        // Gatillo recien apretado -> crear pelota.
+        if (OVRInput.GetDown(botonSaque, controlador))
         {
-            // GameManager arranca el watchdog 2.5s después del SpawnBall — lo silenciamos
-            // mientras seguimos esperando el trigger del jugador.
-            BallWatchdog.instance?.DetenerMonitoreo();
-
-            if (OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch))
-                CrearPelotaEnMano();
+            CrearPelota();
         }
-        else if (estado == Estado.SosteniendoPelota)
-        {
-            // Mientras la pelota está en la mano tampoco queremos watchdog (no se mueve)
-            BallWatchdog.instance?.DetenerMonitoreo();
 
-            if (OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LTouch))
-                SoltarPelota();
+        // Gatillo recien soltado -> soltar pelota.
+        if (OVRInput.GetUp(botonSaque, controlador))
+        {
+            SoltarPelota();
         }
     }
 
     void FixedUpdate()
     {
-        if (estado != Estado.SosteniendoPelota || rbPelota == null || manoIzquierda == null) return;
+        // Mientras este sostenida (kinematic), seguir la mano.
+        if (pelotaActual == null || rbPelota == null) return;
+        if (!rbPelota.isKinematic) return;
 
-        Vector3 nuevaPos = manoIzquierda.position + manoIzquierda.rotation * offsetPelota;
-
-        // Velocidad estimada de la mano para usar al soltar
-        float dt = Mathf.Max(Time.fixedDeltaTime, 0.0001f);
-        velocidadMano = (nuevaPos - posManoPrev) / dt;
-
-        rbPelota.MovePosition(nuevaPos);
-        posManoPrev = nuevaPos;
+        Vector3 destino = manoIzquierda.position + manoIzquierda.rotation * offsetPelota;
+        rbPelota.MovePosition(destino);
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    void CrearPelotaEnMano()
+    void CrearPelota()
     {
-        if (ballSpawner == null) { Debug.LogWarning("[OASIS][Servicio] BallSpawner null."); return; }
-        if (manoIzquierda == null) return;
-
-        GameObject prefab = ballSpawner.GetBallPrefab();
-        if (prefab == null) { Debug.LogError("[OASIS][Servicio] ballPrefab no asignado en BallSpawner."); return; }
+        // Si ya hay una pelota viva (porque quedo una previa o el jugador se mando
+        // dos saques seguidos), la destruimos para evitar duplicados.
+        if (pelotaActual != null) Destroy(pelotaActual);
 
         Vector3 pos = manoIzquierda.position + manoIzquierda.rotation * offsetPelota;
-        pelotaActual = Instantiate(prefab, pos, Quaternion.identity);
+        pelotaActual = Instantiate(prefabPelota, pos, Quaternion.identity);
         rbPelota = pelotaActual.GetComponent<Rigidbody>();
 
-        if (rbPelota == null)
+        if (rbPelota != null)
         {
-            Debug.LogError("[OASIS][Servicio] La pelota no tiene Rigidbody.");
-            Destroy(pelotaActual);
-            pelotaActual = null;
-            return;
+            // Estado: sostenida en la mano.
+            rbPelota.isKinematic = true;
+            rbPelota.useGravity = false;
+            rbPelota.linearVelocity = Vector3.zero;
+            rbPelota.angularVelocity = Vector3.zero;
         }
-
-        rbPelota.isKinematic     = true;
-        rbPelota.useGravity      = false;
-        rbPelota.linearVelocity  = Vector3.zero;
-        rbPelota.angularVelocity = Vector3.zero;
-
-        // Registrar como pelota actual del juego
-        ballSpawner.RegistrarPelotaJugador(pelotaActual);
-
-        posManoPrev   = pos;
-        velocidadMano = Vector3.zero;
-        estado = Estado.SosteniendoPelota;
-
-        Debug.Log("[OASIS][Servicio] Pelota creada en la mano izquierda — sostener y soltar trigger para lanzar.");
     }
 
     void SoltarPelota()
     {
-        if (rbPelota == null) { estado = Estado.Inactivo; return; }
+        if (pelotaActual == null || rbPelota == null) return;
 
+        // Estado: en juego. Solo cae con gravedad.
         rbPelota.isKinematic = false;
-        rbPelota.useGravity  = true;
-
-        Vector3 vSalida = velocidadMano * multiplicadorLanzamiento;
-        if (vSalida.magnitude < velocidadMinimaSoltar)
-            vSalida = Vector3.up * velocidadMinimaSoltar; // suelta tipo "saque vertical" si la mano no se movió
-
-        rbPelota.linearVelocity  = vSalida;
+        rbPelota.useGravity = true;
+        rbPelota.linearVelocity = Vector3.zero;       // <-- CLAVE: SIN velocidad de mano
         rbPelota.angularVelocity = Vector3.zero;
 
-        // Reactivar watchdog ahora que la pelota está libre
-        BallWatchdog.instance?.IniciarMonitoreo();
-        Debug.Log($"[OASIS][Servicio] Pelota soltada v={vSalida}");
-
-        // Soltamos referencias — la pelota sigue siendo "pelotaActual" del BallSpawner
-        rbPelota = null;
+        // Soltamos la referencia. La pelota ya vive su vida.
         pelotaActual = null;
-        estado = Estado.Inactivo;
+        rbPelota = null;
     }
 }
