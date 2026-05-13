@@ -1,30 +1,40 @@
 using UnityEngine;
 
 /// <summary>
-/// Raqueta kinematica que sigue la mano derecha. Al colisionar con la pelota,
-/// aplica una reflexion limpia + un aporte LIMITADO del swing. Garantiza
-/// que la pelota SIEMPRE se aleja de la raqueta con velocidad util,
-/// y nunca supera la velocidad maxima.
+/// Raqueta kinematica que sigue la mano derecha. Soporta MANDO y HAND TRACKING.
+///
+/// En modo MANDO la raqueta hereda la rotacion del RightHandAnchor (mas un offset).
+/// En modo HAND la rotacion se DERIVA de los ejes del wrist para que el agarre
+/// salga natural sin importar la orientacion absoluta del anchor:
+///   - El mango queda a lo largo de los dedos (wrist.forward).
+///   - El blade mira hacia afuera de la palma (wrist.up).
+/// El offsetRotacionHand sirve para tunear pequenas diferencias.
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
 public class RaquetaJugador : MonoBehaviour
 {
-    [Header("Referencia mano")]
+    [Header("Mano derecha — MANDO")]
     public Transform manoDerecha;
     public Vector3 offsetPosicion = Vector3.zero;
     public Vector3 offsetRotacion = Vector3.zero;
 
+    [Header("Mano derecha — HAND TRACKING (opcional)")]
+    [Tooltip("Transform a seguir en hand tracking. Puede ser el mismo RightHandAnchor.")]
+    public Transform manoDerechaHand;
+
+    [Tooltip("Offset de posicion respecto al wrist en hand tracking.")]
+    public Vector3 offsetPosicionHand = new Vector3(0f, -0.02f, 0.08f);
+
+    [Tooltip("Offset de rotacion FINO para hand tracking. La rotacion base se calcula a partir de los ejes del wrist; este offset es solo para ajustes pequenos.")]
+    public Vector3 offsetRotacionHand = Vector3.zero;
+
+    [Tooltip("OVRHand de la mano derecha. Si esta trackeando, se usa el modo hand tracking.")]
+    public OVRHand handDerecha;
+
     [Header("Golpe")]
-    [Tooltip("Velocidad minima de salida en la direccion normal. Garantiza que el golpe siempre 'cuente'.")]
     public float velocidadMinimaSalida = 4f;
-
-    [Tooltip("Velocidad maxima absoluta de la pelota tras el golpe.")]
     public float velocidadMaxima = 10f;
-
-    [Tooltip("Coeficiente de restitucion del rebote: 1 = elastico perfecto, 0 = pelota se pega.")]
     [Range(0.5f, 1f)] public float coeficienteRebote = 0.9f;
-
-    [Tooltip("Cuanto del swing de la raqueta se suma al rebote (0-1). Bajo = mas controlable.")]
     [Range(0f, 1f)] public float aporteSwing = 0.35f;
 
     private Rigidbody rb;
@@ -43,10 +53,34 @@ public class RaquetaJugador : MonoBehaviour
 
     void FixedUpdate()
     {
-        if (manoDerecha == null) return;
+        bool usandoHands = handDerecha != null && handDerecha.IsTracked && manoDerechaHand != null;
+        Transform mano = usandoHands ? manoDerechaHand : manoDerecha;
+        if (mano == null) return;
 
-        Vector3 nuevaPos = manoDerecha.position + manoDerecha.rotation * offsetPosicion;
-        Quaternion nuevaRot = manoDerecha.rotation * Quaternion.Euler(offsetRotacion);
+        Vector3 offPos;
+        Quaternion baseRot;
+        Quaternion offRotQ;
+
+        if (usandoHands)
+        {
+            // Rotacion base derivada de los ejes del wrist:
+            //   mango (racket.up)     ← wrist.forward (a lo largo de los dedos)
+            //   blade (racket.forward) ← wrist.up      (afuera de la palma)
+            // Esto da un agarre natural independientemente de la orientacion
+            // absoluta del anchor de la mano.
+            baseRot = Quaternion.LookRotation(mano.up, mano.forward);
+            offPos = offsetPosicionHand;
+            offRotQ = Quaternion.Euler(offsetRotacionHand);
+        }
+        else
+        {
+            baseRot = mano.rotation;
+            offPos = offsetPosicion;
+            offRotQ = Quaternion.Euler(offsetRotacion);
+        }
+
+        Vector3 nuevaPos = mano.position + mano.rotation * offPos;
+        Quaternion nuevaRot = baseRot * offRotQ;
 
         float dt = Mathf.Max(Time.fixedDeltaTime, 0.0001f);
         velRaqueta = (nuevaPos - posAnterior) / dt;
@@ -62,45 +96,35 @@ public class RaquetaJugador : MonoBehaviour
 
         Rigidbody rbPelota = col.rigidbody;
         if (rbPelota == null) return;
-
-        // Si la pelota esta sostenida (kinematic) por el sistema de saque,
-        // no la golpeamos. Evita que el jugador rompa su propio saque.
         if (rbPelota.isKinematic) return;
 
         Vector3 normal = col.contacts[0].normal;
         Vector3 velPelota = rbPelota.linearVelocity;
 
-        // 1) Reflexion fisica clasica, atenuada por el coeficiente de rebote.
         Vector3 reflejada = Vector3.Reflect(velPelota, normal) * coeficienteRebote;
 
-        // 2) Aporte del swing: solo la componente que va en la direccion normal,
-        //    y solo un porcentaje. Asi un swing fuerte aumenta el golpe pero
-        //    no dispara la pelota a 50 m/s.
         float compRaqueta = Mathf.Max(0f, Vector3.Dot(velRaqueta, normal));
         Vector3 impulso = normal * compRaqueta * aporteSwing;
 
         Vector3 vFinal = reflejada + impulso;
 
-        // 3) Garantizar velocidad minima EN LA NORMAL.
-        //    Si la pelota viene muy lenta, igual sale con fuerza util.
         float compNormal = Vector3.Dot(vFinal, normal);
         if (compNormal < velocidadMinimaSalida)
-        {
             vFinal += normal * (velocidadMinimaSalida - compNormal);
-        }
 
-        // 4) Tope absoluto de velocidad.
         if (vFinal.magnitude > velocidadMaxima)
-        {
             vFinal = vFinal.normalized * velocidadMaxima;
-        }
 
+        // Liberar la pelota flotante del saque-con-manos si estaba congelada.
+        rbPelota.constraints = RigidbodyConstraints.None;
+        rbPelota.useGravity = true;
         rbPelota.linearVelocity = vFinal;
-        // NO tocamos angularVelocity: dejamos que el efecto natural permanezca.
 
-        // Avisar al GameManager para resetear el contador de doble-rebote
-        // y al watchdog para que no declare la pelota perdida.
-        if (GameManager.instance != null) GameManager.instance.RegistrarGolpeRaqueta();
+        // Sonido especial si la pelota lo tiene asignado.
+        PelotaBehaviour pelota = col.gameObject.GetComponent<PelotaBehaviour>();
+        if (pelota != null) pelota.NotificarGolpe();
+
+        if (GameManager.instance != null) GameManager.instance.RegistrarGolpe(false);
         else BallWatchdog.instance?.RegistrarGolpe();
     }
 }

@@ -39,6 +39,13 @@ public class BallSpawner : MonoBehaviour
             Destroy(pelotaActual);
             pelotaActual = null;
         }
+        // Defensa: si quedo alguna pelota viva por el lado del jugador
+        // (saque con manos, etc), la limpiamos tambien para que no haya
+        // pelotas zombies entre rondas.
+        foreach (GameObject extra in GameObject.FindGameObjectsWithTag("Ball"))
+        {
+            if (extra != null) Destroy(extra);
+        }
     }
 
     public GameObject GetPelotaActual() => pelotaActual;

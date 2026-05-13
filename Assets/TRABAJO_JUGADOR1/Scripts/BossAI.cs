@@ -106,9 +106,8 @@ public class BossAI : MonoBehaviour
         rb.linearVelocity = v;
         rb.angularVelocity = Vector3.zero;
 
-        // Avisar al GameManager para resetear el contador de doble-rebote
-        // y al watchdog para resetear su timer de inactividad.
-        if (GameManager.instance != null) GameManager.instance.RegistrarGolpeRaqueta();
+        // Avisar al GameManager: golpeo el JEFE.
+        if (GameManager.instance != null) GameManager.instance.RegistrarGolpe(true);
         else BallWatchdog.instance?.RegistrarGolpe();
 
         yield return new WaitForSeconds(cooldown);

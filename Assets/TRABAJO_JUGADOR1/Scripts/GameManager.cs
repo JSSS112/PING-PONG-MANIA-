@@ -28,16 +28,35 @@ public class GameManager : MonoBehaviour
     [Header("OBLIGATORIO")]
     public BallSpawner ballSpawner;
 
+    [Header("Saque del jugador (opcional pero recomendado)")]
+    public SistemaDeServicio sistemaDeServicio;
+
     // Estado publico
     [HideInInspector] public bool roundActive = false;
     [HideInInspector] public bool gameOver    = false;
 
+    // Cuanta vida quita el punto actual. PelotaBehaviour lo setea a 2 si la
+    // pelota spawneada es AMARILLA, sino queda en 1. Se resetea tras anotar.
+    [HideInInspector] public int  puntoVale   = 1;
+
     // Saque alternado por numero de ronda: par = jugador, impar = jefe
     private int numeroRonda = 0;
 
-    // Lógica de rebotes para puntuación correcta de ping pong
-    private enum LadoRebote { Ninguno, Jugador, Jefe }
-    private LadoRebote ultimoRebote = LadoRebote.Ninguno;
+    // ── ESTADO DEL RALLY ─────────────────────────────────────────────────────
+    // Regla simple de ping pong:
+    //   - Quien acaba de golpear (jefe / jugador) define a quien le toca:
+    //     la pelota debe rebotar en el lado OPUESTO al golpeador.
+    //   - Si rebota en el mismo lado del golpeador  → punto al oponente
+    //     (la mando a su propio campo).
+    //   - Si rebota 2 veces en lado del oponente sin que el oponente la
+    //     devuelva → punto al golpeador (el oponente no la devolvio).
+    //   - Si la pelota se pierde con 0 botes en lado del oponente → punto
+    //     al oponente (la mandaron afuera).
+    //   - Si se pierde con 1+ botes en lado del oponente → punto al
+    //     golpeador (el oponente no la devolvio).
+    private enum Lado { Ninguno, Jugador, Jefe }
+    private Lado ultimoGolpeador = Lado.Ninguno;
+    private int  botesEnLadoOponente = 0;
 
     // ════════════════════════════════════════════════════════════════════════
     void Awake()
@@ -104,11 +123,14 @@ public class GameManager : MonoBehaviour
 
         BallWatchdog.instance?.DetenerMonitoreo();
         ballSpawner?.DestruirPelotaActual();
+        sistemaDeServicio?.HabilitarSaque(false);
 
-        playerLife = Mathf.Max(0, playerLife - 1);
+        int dano = Mathf.Max(1, puntoVale);
+        playerLife = Mathf.Max(0, playerLife - dano);
+        puntoVale = 1;            // reset para la proxima ronda
         ActualizarUI();
 
-        Debug.Log($"[OASIS] JEFE anota! Jugador vida:{playerLife} | Jefe vida:{bossLife}");
+        Debug.Log($"[OASIS] JEFE anota (-{dano})! Jugador vida:{playerLife} | Jefe vida:{bossLife}");
 
         if (VerificarFinJuego()) return;
 
@@ -123,11 +145,14 @@ public class GameManager : MonoBehaviour
 
         BallWatchdog.instance?.DetenerMonitoreo();
         ballSpawner?.DestruirPelotaActual();
+        sistemaDeServicio?.HabilitarSaque(false);
 
-        bossLife = Mathf.Max(0, bossLife - 1);
+        int dano = Mathf.Max(1, puntoVale);
+        bossLife = Mathf.Max(0, bossLife - dano);
+        puntoVale = 1;            // reset para la proxima ronda
         ActualizarUI();
 
-        Debug.Log($"[OASIS] JUGADOR anota! Jefe vida:{bossLife} | Jugador vida:{playerLife}");
+        Debug.Log($"[OASIS] JUGADOR anota (-{dano})! Jefe vida:{bossLife} | Jugador vida:{playerLife}");
 
         if (VerificarFinJuego()) return;
 
@@ -147,7 +172,11 @@ public class GameManager : MonoBehaviour
     IEnumerator IniciarRonda()
     {
         bool jefeSaca = (numeroRonda % 2 != 0);
-        ultimoRebote = LadoRebote.Ninguno;
+        ultimoGolpeador = Lado.Ninguno;
+        botesEnLadoOponente = 0;
+
+        // Mientras dura el countdown, el saque del jugador esta deshabilitado.
+        sistemaDeServicio?.HabilitarSaque(false);
 
         Debug.Log($"[OASIS] Ronda {numeroRonda} | Saca: {(jefeSaca ? "JEFE" : "JUGADOR")}");
 
@@ -169,6 +198,8 @@ public class GameManager : MonoBehaviour
         if (ballSpawner != null)
         {
             ballSpawner.SpawnBall(jefeSaca);
+            // Solo habilitamos el saque del jugador si esta ronda le toca a el.
+            sistemaDeServicio?.HabilitarSaque(!jefeSaca);
             StartCoroutine(IniciarWatchdogConDelay(2.5f));
         }
         else
@@ -222,76 +253,104 @@ public class GameManager : MonoBehaviour
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // REBOTES Y GOLPES — lógica simple de ping pong
+    // REBOTES Y GOLPES — regla de ping pong real
     // ════════════════════════════════════════════════════════════════════════
-    // Regla: si la pelota rebota 2 veces seguidas en el mismo lado sin que ese
-    // jugador la golpee, ese lado pierde el punto. Cuando la raqueta del jugador
-    // o el jefe golpean, se reinicia el contador.
+
+    /// <summary>
+    /// Lo llaman RaquetaJugador (false) y BossAI (true) cuando golpean / sacan.
+    /// Resetea el contador de botes en lado oponente, porque el rally arranca
+    /// de nuevo desde el nuevo golpeador.
+    /// </summary>
+    public void RegistrarGolpe(bool fueElJefe)
+    {
+        if (!roundActive || gameOver) return;
+        ultimoGolpeador = fueElJefe ? Lado.Jefe : Lado.Jugador;
+        botesEnLadoOponente = 0;
+        BallWatchdog.instance?.RegistrarGolpe();
+        Debug.Log($"[OASIS] Golpe registrado por {ultimoGolpeador}");
+    }
+
+    /// <summary>
+    /// Lo llama TableBounce cuando la pelota rebota en una mitad de la mesa.
+    /// Aplica las reglas para decidir punto / continuar rally.
+    /// </summary>
     public void RegistrarRebote(bool ladoJefe)
     {
         if (!roundActive || gameOver) return;
 
-        LadoRebote nuevoLado = ladoJefe ? LadoRebote.Jefe : LadoRebote.Jugador;
-        Debug.Log($"[OASIS] Rebote en: {(ladoJefe ? "LADO JEFE" : "LADO JUGADOR")} | anterior={ultimoRebote}");
+        Lado ladoBote = ladoJefe ? Lado.Jefe : Lado.Jugador;
+        BallWatchdog.instance?.RegistrarGolpe();
 
-        if (ultimoRebote == nuevoLado)
+        // Si nadie golpeo todavia, tomamos al que sacaba como el "golpeador".
+        if (ultimoGolpeador == Lado.Ninguno)
         {
-            // 2do rebote consecutivo en el mismo lado → ese lado falló
-            ultimoRebote = LadoRebote.Ninguno;
-            if (ladoJefe)
-            {
-                Debug.Log("[OASIS] Doble rebote lado JEFE → punto JUGADOR");
-                JugadorAnota();
-            }
-            else
-            {
-                Debug.Log("[OASIS] Doble rebote lado JUGADOR → punto JEFE");
-                JefeAnota();
-            }
+            bool jefeSaca = (numeroRonda % 2 != 0);
+            ultimoGolpeador = jefeSaca ? Lado.Jefe : Lado.Jugador;
+            botesEnLadoOponente = 0;
+        }
+
+        Debug.Log($"[OASIS] Rebote en {ladoBote} | ultimoGolpeador={ultimoGolpeador} | botesEnLadoOponente={botesEnLadoOponente}");
+
+        // Caso 1: rebota en el mismo lado del que la golpeo
+        //   → la mando a su propio campo → punto al oponente
+        if (ladoBote == ultimoGolpeador)
+        {
+            Debug.Log($"[OASIS] {ultimoGolpeador} la mando a su propio lado → punto al oponente");
+            if (ultimoGolpeador == Lado.Jefe) JugadorAnota();
+            else                              JefeAnota();
             return;
         }
 
-        ultimoRebote = nuevoLado;
-        BallWatchdog.instance?.RegistrarGolpe();
+        // Caso 2: rebota en el lado del oponente
+        botesEnLadoOponente++;
+
+        // Caso 2a: segundo bote en lado del oponente → oponente no devolvio
+        if (botesEnLadoOponente >= 2)
+        {
+            Debug.Log($"[OASIS] Doble bote en lado del oponente → punto al golpeador ({ultimoGolpeador})");
+            if (ultimoGolpeador == Lado.Jefe) JefeAnota();
+            else                              JugadorAnota();
+            return;
+        }
+
+        // Caso 2b: primer bote en lado del oponente → rally continua,
+        // ahora el oponente tiene que devolverla.
     }
 
-    // Llamar desde RaquetaJugador y BossAI cuando golpean la pelota.
-    // NO resetea ultimoRebote — sirve como "ultimo lado conocido" si la pelota
-    // se pierde antes del siguiente bote.
-    public void RegistrarGolpeRaqueta()
-    {
-        BallWatchdog.instance?.RegistrarGolpe();
-    }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // PELOTA PERDIDA — la llama BallWatchdog cuando la pelota se pierde
-    // (fuera del mundo o quieta demasiado tiempo). Reglas:
-    //   - Si el ultimo bote fue lado JEFE  → el jefe no la devolvio → punto JUGADOR.
-    //   - Si el ultimo bote fue lado JUGADOR → el jugador no la devolvio → punto JEFE.
-    //   - Si nunca boto (Ninguno) → falla del que sacaba en esta ronda.
-    // Es la unica fuente de verdad: ignora coordenadas mundiales para no
-    // depender del Z de la red.
-    // ════════════════════════════════════════════════════════════════════════
+    /// <summary>
+    /// Lo llama BallWatchdog cuando la pelota se pierde (fuera del mundo o
+    /// quieta demasiado tiempo).
+    ///   - 0 botes en lado oponente → el golpeador la mando afuera → punto al oponente.
+    ///   - 1+ botes en lado oponente → el oponente no la devolvio → punto al golpeador.
+    ///   - Nadie golpeo todavia → fallo el saque → punto contra el que sacaba.
+    /// </summary>
     public void PelotaPerdidaPorWatchdog()
     {
         if (!roundActive || gameOver) return;
 
-        if (ultimoRebote == LadoRebote.Jefe)
+        if (ultimoGolpeador == Lado.Ninguno)
         {
-            Debug.Log("[OASIS] Pelota perdida tras ultimo bote en LADO JEFE → punto JUGADOR");
-            JugadorAnota();
+            bool jefeSacaba = (numeroRonda % 2 != 0);
+            Debug.Log($"[OASIS] Saque fallado por {(jefeSacaba ? "JEFE" : "JUGADOR")} → punto al oponente");
+            if (jefeSacaba) JugadorAnota(); else JefeAnota();
+            return;
         }
-        else if (ultimoRebote == LadoRebote.Jugador)
+
+        if (botesEnLadoOponente == 0)
         {
-            Debug.Log("[OASIS] Pelota perdida tras ultimo bote en LADO JUGADOR → punto JEFE");
-            JefeAnota();
+            Debug.Log($"[OASIS] {ultimoGolpeador} la mando afuera (no boto en lado del oponente) → punto al oponente");
+            if (ultimoGolpeador == Lado.Jefe) JugadorAnota();
+            else                              JefeAnota();
         }
         else
         {
-            // Nunca boto. Quien sacaba perdio (su saque no llego a la mesa).
-            bool jefeSacaba = (numeroRonda % 2 != 0);
-            Debug.Log($"[OASIS] Pelota perdida sin botes → falla del que sacaba ({(jefeSacaba ? "JEFE" : "JUGADOR")})");
-            if (jefeSacaba) JugadorAnota(); else JefeAnota();
+            Debug.Log($"[OASIS] Oponente de {ultimoGolpeador} no devolvio → punto al golpeador");
+            if (ultimoGolpeador == Lado.Jefe) JefeAnota();
+            else                              JugadorAnota();
         }
     }
+
+    // Compatibilidad con scripts viejos que llamaban RegistrarGolpeRaqueta().
+    // Por defecto asumimos que fue el jugador.
+    public void RegistrarGolpeRaqueta() => RegistrarGolpe(false);
 }

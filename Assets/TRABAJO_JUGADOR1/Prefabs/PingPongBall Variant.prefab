@@ -212,6 +212,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 52041deb71cf85c47ad5363a13bb68bc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PelotaBehaviour
-  velocidadMaxima: 12
-  yMinima: -3
-  tiempoQuietaMax: 4
+  velocidadMaxima: 5
+  materialAmarillo: {fileID: 2100000, guid: 6fe08c4d299ca6b4ca0820009ea7118a, type: 2}
+  probabilidadAmarillo: 0.2
+  valorPuntoAmarillo: 2
+  materialNaranja: {fileID: 2100000, guid: 7a60c03ab9c3cdd4f807ef7ce77c4777, type: 2}
+  probabilidadNaranja: 0.3
+  escalaNaranja: 1.67
+  masaNaranja: 0.0015
+  velMaxNaranja: 8
+  dragNaranja: 0.01
