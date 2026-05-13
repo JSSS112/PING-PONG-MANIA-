@@ -256,9 +256,42 @@ public class GameManager : MonoBehaviour
     }
 
     // Llamar desde RaquetaJugador y BossAI cuando golpean la pelota.
+    // NO resetea ultimoRebote — sirve como "ultimo lado conocido" si la pelota
+    // se pierde antes del siguiente bote.
     public void RegistrarGolpeRaqueta()
     {
-        ultimoRebote = LadoRebote.Ninguno;
         BallWatchdog.instance?.RegistrarGolpe();
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // PELOTA PERDIDA — la llama BallWatchdog cuando la pelota se pierde
+    // (fuera del mundo o quieta demasiado tiempo). Reglas:
+    //   - Si el ultimo bote fue lado JEFE  → el jefe no la devolvio → punto JUGADOR.
+    //   - Si el ultimo bote fue lado JUGADOR → el jugador no la devolvio → punto JEFE.
+    //   - Si nunca boto (Ninguno) → falla del que sacaba en esta ronda.
+    // Es la unica fuente de verdad: ignora coordenadas mundiales para no
+    // depender del Z de la red.
+    // ════════════════════════════════════════════════════════════════════════
+    public void PelotaPerdidaPorWatchdog()
+    {
+        if (!roundActive || gameOver) return;
+
+        if (ultimoRebote == LadoRebote.Jefe)
+        {
+            Debug.Log("[OASIS] Pelota perdida tras ultimo bote en LADO JEFE → punto JUGADOR");
+            JugadorAnota();
+        }
+        else if (ultimoRebote == LadoRebote.Jugador)
+        {
+            Debug.Log("[OASIS] Pelota perdida tras ultimo bote en LADO JUGADOR → punto JEFE");
+            JefeAnota();
+        }
+        else
+        {
+            // Nunca boto. Quien sacaba perdio (su saque no llego a la mesa).
+            bool jefeSacaba = (numeroRonda % 2 != 0);
+            Debug.Log($"[OASIS] Pelota perdida sin botes → falla del que sacaba ({(jefeSacaba ? "JEFE" : "JUGADOR")})");
+            if (jefeSacaba) JugadorAnota(); else JefeAnota();
+        }
     }
 }
