@@ -57,30 +57,41 @@ public class RaquetaJugador : MonoBehaviour
         Transform mano = usandoHands ? manoDerechaHand : manoDerecha;
         if (mano == null) return;
 
-        Vector3 offPos;
-        Quaternion baseRot;
-        Quaternion offRotQ;
+        Vector3 nuevaPos;
+        Quaternion nuevaRot;
 
         if (usandoHands)
         {
-            // Rotacion base derivada de los ejes del wrist:
-            //   mango (racket.up)     ← wrist.forward (a lo largo de los dedos)
-            //   blade (racket.forward) ← wrist.up      (afuera de la palma)
-            // Esto da un agarre natural independientemente de la orientacion
-            // absoluta del anchor de la mano.
-            baseRot = Quaternion.LookRotation(mano.up, mano.forward);
-            offPos = offsetPosicionHand;
-            offRotQ = Quaternion.Euler(offsetRotacionHand);
+            // POSICION: la mano (con su offset).
+            nuevaPos = mano.position + mano.rotation * offsetPosicionHand;
+
+            // ROTACION FORZADA — la raqueta apunta SIEMPRE lejos del jugador.
+            // Forward (blade)  = direccion horizontal desde la cabeza hasta la mano.
+            // Up   (top blade) = up del wrist (asi el twist de la muñeca tilta la pala).
+            Camera cam = Camera.main;
+            Vector3 forwardWorld;
+            if (cam != null)
+            {
+                forwardWorld = mano.position - cam.transform.position;
+                forwardWorld.y = 0f;
+                if (forwardWorld.sqrMagnitude < 0.0001f) forwardWorld = Vector3.forward;
+                forwardWorld.Normalize();
+            }
+            else
+            {
+                forwardWorld = Vector3.forward;
+            }
+
+            // El up del wrist puede no ser perpendicular a forward; LookRotation
+            // lo orto-normaliza internamente, no hace falta hacerlo a mano.
+            Quaternion baseRot = Quaternion.LookRotation(forwardWorld, mano.up);
+            nuevaRot = baseRot * Quaternion.Euler(offsetRotacionHand);
         }
         else
         {
-            baseRot = mano.rotation;
-            offPos = offsetPosicion;
-            offRotQ = Quaternion.Euler(offsetRotacion);
+            nuevaPos = mano.position + mano.rotation * offsetPosicion;
+            nuevaRot = mano.rotation * Quaternion.Euler(offsetRotacion);
         }
-
-        Vector3 nuevaPos = mano.position + mano.rotation * offPos;
-        Quaternion nuevaRot = baseRot * offRotQ;
 
         float dt = Mathf.Max(Time.fixedDeltaTime, 0.0001f);
         velRaqueta = (nuevaPos - posAnterior) / dt;

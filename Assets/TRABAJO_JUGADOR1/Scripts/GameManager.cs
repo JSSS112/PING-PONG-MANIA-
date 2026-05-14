@@ -31,6 +31,30 @@ public class GameManager : MonoBehaviour
     [Header("Saque del jugador (opcional pero recomendado)")]
     public SistemaDeServicio sistemaDeServicio;
 
+    [Header("UI — Feedback de punto (encima del jefe)")]
+    [Tooltip("Texto grande que muestra '+1 PUNTO!' / 'PERDISTE -1' tras cada punto.")]
+    public TextMeshProUGUI mensajePuntoText;
+    [Tooltip("Cuanto dura el mensaje en pantalla.")]
+    public float duracionMensajePunto = 1.8f;
+
+    [Header("UI — Nombre del jefe")]
+    [Tooltip("Texto donde se renderiza el nombre malvado del jefe.")]
+    public TextMeshProUGUI nombreJefeText;
+    [Tooltip("Nombre que se muestra encima del jefe.")]
+    public string nombreJefe = "ALEJANDRO EL TIRANO";
+
+    [Header("Audio — musica de fondo (opcional)")]
+    [Tooltip("AudioSource con tu cancion relajante. Arranca con el juego, para cuando termina.")]
+    public AudioSource musicaFondo;
+
+    [Header("UI — Posicion del panel de resultado en VR")]
+    [Tooltip("Si esta en true, el panel se reposiciona frente al jugador al ganar/perder.")]
+    public bool reposicionarPanelResultado = true;
+    [Tooltip("Distancia en metros desde el jugador al panel de resultado.")]
+    public float distanciaPanelResultado = 2f;
+    [Tooltip("Altura relativa al ojo del jugador.")]
+    public float alturaPanelResultado = 0.0f;
+
     // Estado publico
     [HideInInspector] public bool roundActive = false;
     [HideInInspector] public bool gameOver    = false;
@@ -77,6 +101,17 @@ public class GameManager : MonoBehaviour
     {
         if (resultPanel   != null) resultPanel.SetActive(false);
         if (countdownText != null) countdownText.gameObject.SetActive(false);
+        if (mensajePuntoText != null) mensajePuntoText.gameObject.SetActive(false);
+
+        // Pintar el nombre del jefe (si se asigno el texto).
+        if (nombreJefeText != null) nombreJefeText.text = nombreJefe;
+
+        // Arrancar la musica de fondo si esta asignada.
+        if (musicaFondo != null && musicaFondo.clip != null)
+        {
+            musicaFondo.loop = true;
+            musicaFondo.Play();
+        }
 
         // Inicializar sliders y textos con valores completos
         ActualizarUI();
@@ -131,6 +166,7 @@ public class GameManager : MonoBehaviour
         ActualizarUI();
 
         Debug.Log($"[OASIS] JEFE anota (-{dano})! Jugador vida:{playerLife} | Jefe vida:{bossLife}");
+        MostrarMensajePunto($"PERDISTE -{dano}", new Color(1f, 0.3f, 0.3f));
 
         if (VerificarFinJuego()) return;
 
@@ -153,11 +189,31 @@ public class GameManager : MonoBehaviour
         ActualizarUI();
 
         Debug.Log($"[OASIS] JUGADOR anota (-{dano})! Jefe vida:{bossLife} | Jugador vida:{playerLife}");
+        MostrarMensajePunto($"+{dano} PUNTO!", new Color(0.3f, 1f, 0.4f));
 
         if (VerificarFinJuego()) return;
 
         numeroRonda++;
         StartCoroutine(EsperarYReiniciar());
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // FEEDBACK VISUAL — mensaje de punto encima del jefe
+    // ════════════════════════════════════════════════════════════════════════
+    void MostrarMensajePunto(string texto, Color color)
+    {
+        if (mensajePuntoText == null) return;
+        StopCoroutine(nameof(OcultarMensajePunto));
+        mensajePuntoText.text = texto;
+        mensajePuntoText.color = color;
+        mensajePuntoText.gameObject.SetActive(true);
+        StartCoroutine(OcultarMensajePunto());
+    }
+
+    IEnumerator OcultarMensajePunto()
+    {
+        yield return new WaitForSecondsRealtime(duracionMensajePunto);
+        if (mensajePuntoText != null) mensajePuntoText.gameObject.SetActive(false);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -242,8 +298,38 @@ public class GameManager : MonoBehaviour
 
         Time.timeScale = 0f;
 
-        if (resultPanel != null) resultPanel.SetActive(true);
-        if (resultText  != null) resultText.text = msg;
+        // Parar musica de fondo si esta sonando.
+        if (musicaFondo != null && musicaFondo.isPlaying) musicaFondo.Stop();
+
+        // Ocultar UI residual.
+        if (mensajePuntoText != null) mensajePuntoText.gameObject.SetActive(false);
+        if (countdownText != null)   countdownText.gameObject.SetActive(false);
+
+        if (resultPanel != null)
+        {
+            resultPanel.SetActive(true);
+            if (reposicionarPanelResultado) ReposicionarPanelResultado();
+        }
+        if (resultText != null) resultText.text = msg;
+    }
+
+    // Pone el panel de resultado 2 m frente al jugador, mirando hacia el.
+    // Asi se ve bien sin importar donde esta posicionado en la jerarquia.
+    void ReposicionarPanelResultado()
+    {
+        if (resultPanel == null) return;
+        Camera cam = Camera.main;
+        if (cam == null) return;
+
+        Vector3 forward = cam.transform.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.0001f) forward = Vector3.forward;
+        forward.Normalize();
+
+        Vector3 pos = cam.transform.position + forward * distanciaPanelResultado;
+        pos.y = cam.transform.position.y + alturaPanelResultado;
+        resultPanel.transform.position = pos;
+        resultPanel.transform.rotation = Quaternion.LookRotation(forward, Vector3.up);
     }
 
     public void ReiniciarJuego()

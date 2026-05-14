@@ -216,9 +216,14 @@ MonoBehaviour:
   materialAmarillo: {fileID: 2100000, guid: 6fe08c4d299ca6b4ca0820009ea7118a, type: 2}
   probabilidadAmarillo: 0.2
   valorPuntoAmarillo: 2
+  sonidoGolpeAmarillo: {fileID: 8300000, guid: c4c668dac8fab504289688ecd104dda5, type: 3}
   materialNaranja: {fileID: 2100000, guid: 7a60c03ab9c3cdd4f807ef7ce77c4777, type: 2}
   probabilidadNaranja: 0.3
   escalaNaranja: 1.67
   masaNaranja: 0.0015
   velMaxNaranja: 8
   dragNaranja: 0.01
+  sonidoGolpeNaranja: {fileID: 8300000, guid: fcc6ad47f7e56c54bb590554aba31c3c, type: 3}
+  sonidoPalpitaciones: {fileID: 8300000, guid: ee64be8c2932dd04dbca47e7a56296e7, type: 3}
+  volumenPalpitaciones: 0.6
+  volumenGolpeEspecial: 1
