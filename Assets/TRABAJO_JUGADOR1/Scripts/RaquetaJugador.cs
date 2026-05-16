@@ -2,13 +2,8 @@ using UnityEngine;
 
 /// <summary>
 /// Raqueta kinematica que sigue la mano derecha. Soporta MANDO y HAND TRACKING.
-///
-/// En modo MANDO la raqueta hereda la rotacion del RightHandAnchor (mas un offset).
-/// En modo HAND la rotacion se DERIVA de los ejes del wrist para que el agarre
-/// salga natural sin importar la orientacion absoluta del anchor:
-///   - El mango queda a lo largo de los dedos (wrist.forward).
-///   - El blade mira hacia afuera de la palma (wrist.up).
-/// El offsetRotacionHand sirve para tunear pequenas diferencias.
+/// En ambos modos la raqueta hereda la rotacion del transform de la mano y
+/// se afina con su offset correspondiente desde el Inspector.
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
 public class RaquetaJugador : MonoBehaviour
@@ -22,11 +17,11 @@ public class RaquetaJugador : MonoBehaviour
     [Tooltip("Transform a seguir en hand tracking. Puede ser el mismo RightHandAnchor.")]
     public Transform manoDerechaHand;
 
-    [Tooltip("Offset de posicion respecto al wrist en hand tracking.")]
-    public Vector3 offsetPosicionHand = new Vector3(0f, -0.02f, 0.08f);
+    [Tooltip("Offset de posicion en hand tracking respecto al wrist (frame de la raqueta). Z = cuanto se aleja la raqueta de la palma hacia afuera. Subi si la raqueta atraviesa la mano.")]
+    public Vector3 offsetPosicionHand = new Vector3(0f, 0f, 0.18f);
 
-    [Tooltip("Offset de rotacion FINO para hand tracking. La rotacion base se calcula a partir de los ejes del wrist; este offset es solo para ajustes pequenos.")]
-    public Vector3 offsetRotacionHand = Vector3.zero;
+    [Tooltip("Offset de rotacion para hand tracking. Default (0,90,0) rota la pala para que salga perpendicular a los dedos como una raqueta real. Si queda mal, probar (0,-90,0) / (90,0,0) / (180,0,0).")]
+    public Vector3 offsetRotacionHand = new Vector3(0f, 90f, 0f);
 
     [Tooltip("OVRHand de la mano derecha. Si esta trackeando, se usa el modo hand tracking.")]
     public OVRHand handDerecha;
@@ -62,30 +57,11 @@ public class RaquetaJugador : MonoBehaviour
 
         if (usandoHands)
         {
-            // POSICION: la mano (con su offset).
-            nuevaPos = mano.position + mano.rotation * offsetPosicionHand;
-
-            // ROTACION FORZADA — la raqueta apunta SIEMPRE lejos del jugador.
-            // Forward (blade)  = direccion horizontal desde la cabeza hasta la mano.
-            // Up   (top blade) = up del wrist (asi el twist de la muñeca tilta la pala).
-            Camera cam = Camera.main;
-            Vector3 forwardWorld;
-            if (cam != null)
-            {
-                forwardWorld = mano.position - cam.transform.position;
-                forwardWorld.y = 0f;
-                if (forwardWorld.sqrMagnitude < 0.0001f) forwardWorld = Vector3.forward;
-                forwardWorld.Normalize();
-            }
-            else
-            {
-                forwardWorld = Vector3.forward;
-            }
-
-            // El up del wrist puede no ser perpendicular a forward; LookRotation
-            // lo orto-normaliza internamente, no hace falta hacerlo a mano.
-            Quaternion baseRot = Quaternion.LookRotation(forwardWorld, mano.up);
-            nuevaRot = baseRot * Quaternion.Euler(offsetRotacionHand);
+            // Agarre natural: la raqueta sigue al wrist tal cual, igual que
+            // con el mando. El offset de rotacion permite afinar el angulo
+            // del mango respecto a la palma desde el Inspector.
+            nuevaRot = mano.rotation * Quaternion.Euler(offsetRotacionHand);
+            nuevaPos = mano.position + nuevaRot * offsetPosicionHand;
         }
         else
         {

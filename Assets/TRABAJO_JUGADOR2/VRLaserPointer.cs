@@ -41,6 +41,12 @@ public class VRLaserPointer : MonoBehaviour
     [Tooltip("Mando que dispara el click. Por defecto el derecho.")]
     public OVRInput.Controller mando = OVRInput.Controller.RTouch;
 
+    [Header("Hand tracking (opcional)")]
+    [Tooltip("OVRHand derecha. Si esta trackeando, el pinch (pulgar+indice) cuenta como click y se usa su PointerPose como origen del rayo.")]
+    public OVRHand handDerecha;
+
+    private bool pinchAnterior;
+
     [Header("Visibilidad")]
     [Tooltip("Si está activo, la línea solo se muestra cuando apunta a un elemento UI (no estorba durante el juego).")]
     public bool soloMostrarAlApuntar = true;
@@ -91,8 +97,22 @@ public class VRLaserPointer : MonoBehaviour
     {
         if (rayOrigin == null || eventCamera == null) { if (line) line.enabled = false; return; }
 
-        Vector3 origen   = rayOrigin.position;
-        Vector3 dir      = rayOrigin.forward;
+        bool usandoHand = handDerecha != null && handDerecha.IsTracked;
+
+        Vector3 origen;
+        Vector3 dir;
+        if (usandoHand && handDerecha.IsPointerPoseValid)
+        {
+            // PointerPose es el ray de apuntado oficial de OVRHand: sale del
+            // nudillo del indice y apunta naturalmente hacia donde miran los dedos.
+            origen = handDerecha.PointerPose.position;
+            dir    = handDerecha.PointerPose.forward;
+        }
+        else
+        {
+            origen = rayOrigin.position;
+            dir    = rayOrigin.forward;
+        }
         Vector3 endPoint = origen + dir * maxDistance;
 
         objetoApuntado = null;
@@ -143,8 +163,14 @@ public class VRLaserPointer : MonoBehaviour
             line.startColor = c2; line.endColor = c2;
         }
 
-        // Click
-        if (objetoApuntado != null && OVRInput.GetDown(botonClick, mando))
+        // Click: trigger del mando O pinch (pulgar+indice) en hand tracking.
+        bool pinchActual = usandoHand && handDerecha.GetFingerIsPinching(OVRHand.HandFinger.Index);
+        bool pinchDown   = pinchActual && !pinchAnterior;
+        pinchAnterior    = pinchActual;
+
+        bool clickDown = OVRInput.GetDown(botonClick, mando) || pinchDown;
+
+        if (objetoApuntado != null && clickDown)
         {
             Button b = objetoApuntado.GetComponentInParent<Button>();
             if (b != null && b.interactable)
